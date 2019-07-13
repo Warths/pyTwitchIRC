@@ -1,0 +1,104 @@
+==========SAMPLES OF TWITCH IRC EVENTS==========
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-------------FROM SERVER TO CLIENTS-------------
+JOIN ===========================================
+
+APPLIES FOR CHANNEL JOIN :
+:<user>!<user>@<user>.tmi.twitch.tv JOIN #<channel>
+
+APPLIES FOR SPECIFIC CHATROOM IN A CHANNEL :
+:<user>!<user>@<user>.tmi.twitch.tv JOIN #chatrooms:<channel ID>:<room UUID>
+
+PART ===========================================
+
+APPLIES FOR CHANNEL JOIN :
+:<user>!<user>@<user>.tmi.twitch.tv PART #<channel>
+
+APPLIES FOR SPECIFIC CHATROOM IN A CHANNEL :
+:<user>!<user>@<user>.tmi.twitch.tv PART #chatrooms:<channel ID>:<room UUID>
+
+MODE ===========================================
+
+APPLIES FOR USER OBTAINING MODERATOR RIGHTS :
+:jtv MODE #<channel> +o <user>
+
+APPLIES FOR USER LOOSING MODERATOR RIGHTS :
+:jtv MODE #<channel> -o <user>
+
+NAMES ==========================================
+
+MULTI-EVENT MESSAGE SENT TO BUILD A LIST OF LOGGED-IN VIEWERS :
+
+:<user>.tmi.twitch.tv 353 <user> = #<channel> :<user> <user2> <user3>
+:<user>.tmi.twitch.tv 353 <user> = #<channel> :<user4> <user5> <userN>
+:<user>.tmi.twitch.tv 366 <user> #<channel> :End of /NAMES list
+
+
+PRIVMSG ========================================
+
+IN A CHANNEL :
+@badge-info=<badge-info>;badges=<badges>;color=<color>;display-name=<display-name>;emotes=<emotes>;id=<id-of-msg>;mod=<mod>;room-id=<room-id>;subscriber=<subscriber>;tmi-sent-ts=<timestamp>;turbo=<turbo>;user-id=<user-id>;user-type=<user-type> :<user>!<user>@<user>.tmi.twitch.tv PRIVMSG #<channel> :<message>
+
+IN A CHAT ROOM :
+:<user>!<user>@<user>.tmi.twitch.tv PRIVMSG #chatrooms:<channel ID>:<room UUID> :This is a sample message
+
+
+CAP * ACK ======================================
+
+:tmi.twitch.tv CAP * ACK :twitch.tv/membership
+
+
+CLEARCHAT ======================================
+
+:tmi.twitch.tv CLEARCHAT #<channel> :<user>
+
+@ban-duration=<ban-duration> :tmi.twitch.tv CLEARCHAT #<channel> :<user>
+
+CLEARMSG =======================================
+
+@login=<login>;target-msg-id=<target-msg-id> :tmi.twitch.tv CLEARMSG #<channel> :<message>
+
+GLOBALUSERSTATE ================================
+
+@badge-info=<badge-info>;badges=<badges>;color=<color>;display-name=<display-name>;emote-sets=<emote-sets>;turbo=<turbo>;user-id=<user-id>;user-type=<user-type> :tmi.twitch.tv GLOBALUSERSTATE
+
+
+HOSTTARGET =====================================
+
+:tmi.twitch.tv HOSTTARGET #hosting_channel <channel> [<number-of-viewers>]
+
+NOTE: If argument <channel> is ":-", the host is stopping
+
+NOTICE =========================================
+
+@msg-id=<msg id>:tmi.twitch.tv NOTICE #<channel> :<message>
+
+@msg-id=<msg id>:tmi.twitch.tv NOTICE #chatrooms:<channel ID>:<room UUID> :<message>
+
+RECONNECT ======================================
+
+?? NOT DOCUMENTED
+ASSUMPTION :
+:tmi.twitch.tv RECONNECT
+
+ROOMSTATE ======================================
+
+:tmi.twitch.tv ROOMSTATE #<channel>
+
+@emote-only=<emote-only>;followers-only=<followers-only>;r9k=<r9k>;slow=<slow>;subs-only=<subs-only> :tmi.twitch.tv ROOMSTATE #<channel>
+
+USERNOTICE =====================================
+
+:tmi.twitch.tv USERNOTICE #<channel> :message
+
+@badge-info=<badge-info>;badges=<badges>;color=<color>;display-name=<display-name>;emotes=<emotes>;id=<id-of-msg>;login=<user>;mod=<mod>;msg-id=<msg-id>;room-id=<room-id>;subscriber=<subscriber>;system-msg=<system-msg>;tmi-sent-ts=<timestamp>;turbo=<turbo>;user-id=<user-id>;user-type=<user-type> :tmi.twitch.tv USERNOTICE #<channel> :<message>
+
+USERSTATE ======================================
+
+:tmi.twitch.tv USERSTATE #<channel>
+
+@badge-info=<badge-info>;badges=<badges>;color=<color>;display-name=<display-name>;emote-sets=<emote-sets>;mod=<mod>;subscriber=<subscriber>;turbo=<turbo>;user-type=<user-type>:tmi.twitch.tv USERSTATE #<channel>
+
+:tmi.twitch.tv USERSTATE #chatrooms:<channel ID>:<room UUID>
