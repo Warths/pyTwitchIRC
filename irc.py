@@ -9,11 +9,11 @@ class IRC:
     """
     Map of all supported event.
     Key list :
-    - format_string : parse pattern (str)
-    - type : event type (str)
-    - tags : index of tags (int / None)
-    - author : index of author (int / None)
-    - channel : index of channel (int / None)
+    - format_string (str) :  parse pattern
+    - type          (str) :  event type
+    - tags          (int) :  index of tags
+    - author        (int) :  index of author
+    - channel       (int) :  index of channel
     """
 
     mapping = [
@@ -72,20 +72,20 @@ class IRC:
         self.connected_channels = []
         self.message_buffer = []
         self.received_messages = []
-        self.state = 0
+        self.status = 0
 
-        self.cap_ack_membership = False
-        self.cap_ack_commands = False
-        self.cap_ack_tags = False
-
+        self.cap_ack = {
+            "MEMBERSHIP": False,
+            "COMMANDS": False,
+            "TAGS": False
+        }
 
         # Map of events with callback method
-
         self.callbacks = [
-            (":tmi.twitch.tv CAP * ACK :twitch.tv/commands", self.__cap_ack_commands),
-            (":tmi.twitch.tv CAP * ACK :twitch.tv/tags", self.__cap_ack_tags),
-            (":tmi.twitch.tv CAP * ACK :twitch.tv/membership", self.__cap_ack_membership),
-            ("PING :tmi.twitch.tv", self.__send_pong),
+            (":tmi.twitch.tv CAP * ACK :twitch.tv/membership", self.__cap_ack, ("MEMBERSHIP")),
+            (":tmi.twitch.tv CAP * ACK :twitch.tv/commands", self.__cap_ack, ("COMMANDS")),
+            (":tmi.twitch.tv CAP * ACK :twitch.tv/tags", self.__cap_ack, ("TAGS")),
+            ("PING :tmi.twitch.tv", self.__send_pong, None)
         ]
 
         # Starting a parallel thread to keep the IRC client running
@@ -94,10 +94,19 @@ class IRC:
         thread.start()
 
     def __check_callback(self):
+        # while there is messages in the messages buffer
         while len(self.message_buffer) > 0:
-            for tuples in self.callbacks:
-                if self.message_buffer[0] == tuples[0]:
-                    tuples[1]()
+            # run through the callback list
+            for c in self.callbacks:
+                # if the first message is a callback run the associated method
+                if self.message_buffer[0] == c[0]:
+                    # if the method doesn't need parameters
+                    if c[2] is None:
+                        c[1]()
+                    # if the method does need parameters
+                    else:
+                        c[1](c[2])
+            # pop out the message from the messages buffer and append it to the received messages
             self.received_messages.append(self.message_buffer.pop(0))
 
     def __run(self):
@@ -114,21 +123,15 @@ class IRC:
         self.__connect_socket()
         self.__send_pass()
         self.__send_nickname()
+
+        # request all the IRC capabilities
         self.__request_capabilities("commands")
         self.__request_capabilities("tags")
         self.__request_capabilities("membership")
 
-    def __cap_ack_membership(self):
-        print("Cap MEMBERSHIP got acknowledge.")
-        self.cap_ack_membership = True
-
-    def __cap_ack_tags(self):
-        print("Cap TAGS got acknowledge.")
-        self.cap_ack_tags = True
-
-    def __cap_ack_commands(self):
-        print("Cap COMMANDS got acknowledge.")
-        self.cap_ack_commands = True
+    def __cap_ack(self, capability):
+        print("Cap {} got acknowledge.".format(capability[0]))
+        self.cap_ack[capability[0]] = True
 
     def __open_socket(self) -> None:
         if self.socket:
@@ -167,29 +170,38 @@ class IRC:
         pass
 
     def __receive_data(self):
+        # get up to 1024 from the buffer and the socket then split the messages
         self.buffer += self.socket.recv(1024)
         messages = self.buffer.split(b'\r\n')
         self.buffer = messages.pop()
-        for message in messages:
-            print(message.decode('utf-8'))
-            self.message_buffer.append(message.decode('utf-8'))
 
+        # print all the messages
+        for message in messages:
+            decoded = message.decode("utf-8")
+            print(decoded)
+            self.message_buffer.append(decoded)
+
+    # send a channel connection request
     def channel_join(self, channel: str):
         self.socket.send('JOIN #{}\r\n'.format(channel).encode('utf-8'))
 
+    # leave a channel
     def channel_part(self, channel: str):
         if channel in self.connected_channels:
             self.socket.send('PART #{}\r\n'.format(channel).encode('utf-8'))
             self.connected_channels.remove(channel)
 
+    # rejoin all known channels
     def channel_join_all(self):
         for channel in self.connected_channels:
             self.channel_join(channel)
 
+    # leave all connected channels
     def channel_part_all(self):
         for channel in self.connected_channels:
             self.channel_part(channel)
 
+    # send a message
     def send_message(self, message: str):
         pass
 
