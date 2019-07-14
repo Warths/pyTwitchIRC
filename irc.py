@@ -205,11 +205,40 @@ class IRC:
     def send_message(self, message: str):
         pass
 
-    def __parse(self, message):
-        if message == 'PING :tmi.twitch.tv':
-            return event.Event(message, 'PING')
+    def parse(self, message):
+        if message in ['PING :tmi.twitch.tv', 'PONG :tmi.twitch.tv', 'RECONNECT :tmi.twitch.tv']:
+            return event.Event(message, event_type=message.split()[0])
         else:
-            return event.Event(message, 'UNKNOWN')
+            tags = self.__parse_tags(message)
+            return event.Event(message, event_type='UNKNOWN', tags=tags)
+
+    def __parse_tags(self, message):
+        # Checking if there is tags
+        if message[0] == '@':
+            # Isolating tags (beetween "@" and " :")
+            tags = message[1:].split(' :')[0]
+            tags = self.__parse_tags_dict(tags, ';', '=')
+            # Parsing subdict (separator : "/" and ",")
+            for key in tags:
+                if '/' in tags[key]:
+                    try:
+                        tags[key] = self.__parse_tags_dict(tags[key], ',', '/')
+                    except ValueError:
+                        tags[key] = self.__parse_tags_dict(tags[key], '/', ':')
+            return tags
+
+
+    def __parse_tags_dict(self, tag_dict_string, separator_a, separator_b):
+        # Separating tags (separator : ";" )
+        tag_list = tag_dict_string.split(separator_a)
+        tag_dict = {}
+        # Appending key/value pair in a dict
+        for tag in tag_list:
+            print(tag)
+            key, value = tag.split(separator_b)
+            tag_dict[key] = value
+        return tag_dict
+
 
     def get_message(self) -> list:
         pass
