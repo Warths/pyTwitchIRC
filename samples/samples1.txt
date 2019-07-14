@@ -13,11 +13,6 @@
 :warths.tmi.twitch.tv 366 warths #warths :End of /NAMES list
 @badge-info=subscriber/44;badges=broadcaster/1,subscriber/36,partner/1;color=#1E90FF;display-name=Warths;emote-sets=0,153,189,1159,4313,15362,19194,19469,19780,44836,44837,169331,269959,333245,588170,1291913,1636537,300206309,300312746;mod=0;subscriber=1;user-type= :tmi.twitch.tv USERSTATE #warths
 @emote-only=0;followers-only=-1;r9k=0;rituals=0;room-id=52922713;slow=0;subs-only=0 :tmi.twitch.tv ROOMSTATE #warths
-Cap C got acknowledge.
-Cap T got acknowledge.
-Cap M got acknowledge.
-Result of first test : 0:00:01.173294
-Result of second test : 0:00:01.411011
 :kyriog!kyriog@kyriog.tmi.twitch.tv JOIN #warths
 :musicwithdean!musicwithdean@musicwithdean.tmi.twitch.tv JOIN #warths
 :cachebear!cachebear@cachebear.tmi.twitch.tv JOIN #warths
