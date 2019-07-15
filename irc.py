@@ -267,12 +267,10 @@ class IRC:
 
     def  __parse_author(self, message):
         # author is formated like : ':author!author@author.'
-        regex = re.match(":(.*?)!(\1)@(\1)\.", message)
-        print("pouet")
-        print(regex.group())
-        print(regex.group(1))
-        return message[regex.start(1):regex.end(1)]
-
+        try:
+            return message.split('!')[1].split('@')[0]
+        except IndexError:
+            return None
     def __parse_content(self, message, channel, type):
         pass
 
