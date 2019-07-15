@@ -19,6 +19,7 @@ class Event:
         self.author = author
         self.channel = channel
         self.content = content
+        self.dump()
 
     def dump(self):
         # print(self.raw, self.type, self.tags, self.author, self.channel, self.content, sep="\r\n\t", end="\r\n")

@@ -4,52 +4,8 @@ import time
 import event
 import re
 
+
 class IRC:
-    """
-    Map of all supported event.
-    Key list :
-    - format_string (str) :  parse pattern
-    - type          (str) :  event type
-    - tags          (int) :  index of tags
-    - author        (int) :  index of author
-    - channel       (int) :  index of channel
-    """
-
-    mapping = [
-        # JOIN
-        {
-            'format_string': ':{}!{}@{}.tmi.twitch.tv JOIN #{}',
-            'type': 'JOIN',
-            'tags': None,
-            'author': 0,
-            'channel': 3
-        },
-        # PART
-        {
-            'format_string': ':{}!{}@{}.tmi.twitch.tv PART #{}',
-            'type': 'PART',
-            'tags': None,
-            'author': 0,
-            'channel': 3
-        },
-        # MODE - Moderator Added
-        {
-            'format_string': ':jtv MODE #{} +o {}',
-            'type': 'MODE',
-            'tags': None,
-            'author': 0,
-            'channel': 3
-        },
-        # MODE - Moderator Removed
-        {
-            'format_string': ':jtv MODE #{} -o {}',
-            'type': 'MODE',
-            'tags': None,
-            'author': 0,
-            'channel': 3
-        },
-
-    ]
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667):
         """
@@ -93,6 +49,7 @@ class IRC:
         thread.start()
 
     def __check_callback(self):
+        return
         # while there is messages in the messages buffer
         while len(self.message_buffer) > 0:
             # run through the callback list
@@ -129,6 +86,7 @@ class IRC:
         self.__request_capabilities("membership")
 
     def __cap_ack(self, array):
+        return True
         message = array[0][0]
         target = array[1]
         message_type = self.__parse_type(message)
@@ -136,7 +94,7 @@ class IRC:
         content = self.__parse_content(message, channel, message_type)
         if content.split(target) != content:
             self.__notice("Cap {} got acknowledge.".format(array[1]))
-            self.cap_ack[target.uppercase()] = True
+            self.cap_ack[target.upper()] = True
             return True
         else:
             self.__notice("not a CAP ACK")
@@ -189,21 +147,20 @@ class IRC:
             decoded = message.decode("utf-8")
             print(decoded)
             parsed = self.parse(decoded)
-            print(parsed.dump())
             self.message_buffer.append(decoded)
 
-    # send a channel connection request
     def channel_join(self, channel: str):
+        # send a channel connection request
         self.socket.send('JOIN #{}\r\n'.format(channel).encode('utf-8'))
 
-    # leave a channel
     def channel_part(self, channel: str):
+        # leave a channel
         if channel in self.connected_channels:
             self.socket.send('PART #{}\r\n'.format(channel).encode('utf-8'))
             self.connected_channels.remove(channel)
 
-    # rejoin all known channels
     def channel_join_all(self):
+        # rejoin all known channels
         for channel in self.connected_channels:
             self.channel_join(channel)
 
@@ -221,7 +178,8 @@ class IRC:
         message_type = self.__parse_type(message)
         channel = self.__parse_channel(message, message_type)
         author = self.__parse_author(message)
-        return event.Event(message, type=message_type, tags=tags, channel=channel, author=author)
+        content = self.__parse_content(message, channel)
+        return event.Event(message, type=message_type, tags=tags, channel=channel, author=author, content=content)
 
     def __parse_tags(self, message):
         # Checking if there is tags
@@ -297,13 +255,12 @@ class IRC:
             return None
 
     @staticmethod
-    def __parse_content(message, channel, message_type):
-        target = channel + " " + message_type
-        content = message.split(target)
-        if content != message:
-            return content
-        else:
-            return None
+    def __parse_content(message, channel):
+        target = " :"
+        if channel:
+            target = channel + target
+        content = message.split(target, maxsplit=1)
+        return content[1] if len(content) > 1 else None
 
     def get_message(self) -> list:
         pass
