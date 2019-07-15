@@ -1,17 +1,17 @@
 class Event:
 
-    def __init__(self, raw: str, content=None, event_type=None, tags=None, author=None, channel=None):
+    def __init__(self, raw: str, content=None, type=None, tags=None, author=None, channel=None):
         """
 
         :param raw: decoded IRC event
         :param content: content / message 
-        :param event_type: type associated to the event
+        :param type: type associated to the event
         :param tags: un-parsed event tags
         :param author: event author
         :param channel: channel where the event occured
         """
         self.raw = raw
-        self.type = event_type
+        self.type = type
         self.tags = tags
         self.author = author
         self.channel = channel
