@@ -271,6 +271,14 @@ class IRC:
             return message.split('!')[1].split('@')[0]
         except IndexError:
             return None
+
+    def __parse_author_regex(self, message):
+        # 2 hours to create search string:
+        try:
+            return re.search(r':(.*?)!(\1)@(\1)\.', message).group(1)
+        except:
+            return None
+
     def __parse_content(self, message, channel, type):
         pass
 
