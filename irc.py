@@ -3,7 +3,7 @@ import socket
 import time
 import event
 import datetime
-
+import re
 
 class IRC:
     """
@@ -151,6 +151,7 @@ class IRC:
         print("Ping received. PONG sent.")
         self.socket.send('PONG :tmi.twitch.tv\r\n'.encode("UTF-8"))
 
+
     def __init_room(self):
         pass
 
@@ -162,7 +163,6 @@ class IRC:
 
     def __request_capabilities(self, arg: str):
         self.socket.send('CAP REQ :twitch.tv/{}\r\n'.format(arg).encode('utf-8'))
-
     def __is_loading_complete(self):
         pass
 
@@ -206,25 +206,31 @@ class IRC:
         pass
 
     def parse(self, message):
-        if message in ['PING :tmi.twitch.tv', 'PONG :tmi.twitch.tv', 'RECONNECT :tmi.twitch.tv']:
-            return event.Event(message, event_type=message.split()[0])
-        else:
-            tags = self.__parse_tags(message)
-            return event.Event(message, event_type='UNKNOWN', tags=tags)
+        tags = self.__parse_tags(message)
+        type = self.__parse_type(message)
+        channel = self.__parse_channel(message, type)
+        author = self.__parse_author(message)
+        return event.Event(message, type=type, tags=tags, channel=channel, author=author)
 
     def __parse_tags(self, message):
         # Checking if there is tags
         if message[0] == '@':
-            # Isolating tags (beetween "@" and " :")
+            # Isolating tags (beetween '@' and ' :')
             tags = message[1:].split(' :')[0]
             tags = self.__parse_tags_dict(tags, ';', '=')
-            # Parsing subdict (separator : "/" and ",")
+            # Parsing subdict (separator : '/' and ',')
             for key in tags:
-                if '/' in tags[key]:
-                    try:
-                        tags[key] = self.__parse_tags_dict(tags[key], ',', '/')
-                    except ValueError:
-                        tags[key] = self.__parse_tags_dict(tags[key], '/', ':')
+                if key == 'flags':
+                    pass
+                elif ':' in tags[key]:
+                    tags[key] = self.__parse_tags_dict(tags[key], '/', ':')
+                    for sub_key in tags[key]:
+                        tags[key][sub_key] = self.__parse_list(tags[key][sub_key], ',')
+                        for i in range(0, len(tags[key][sub_key])):
+                            tags[key][sub_key][i] = self.__parse_list(tags[key][sub_key][i], '-')
+                elif '/' in tags[key]:
+                    tags[key] = self.__parse_tags_dict(tags[key], ',', '/')
+
             return tags
 
 
@@ -234,11 +240,41 @@ class IRC:
         tag_dict = {}
         # Appending key/value pair in a dict
         for tag in tag_list:
-            print(tag)
             key, value = tag.split(separator_b)
             tag_dict[key] = value
         return tag_dict
 
+    def __parse_list(self, list_string, separator):
+        return list_string.split(separator)
+
+    def __parse_type(self, message):
+        split = message.split()
+        for word in split:
+            if word.upper() == word:
+                return word
+
+    def __parse_channel(self, message, type):
+        # Channel in a whisper is always the client nickname
+        if type == 'WHISPER':
+            return self.nickname
+        else:
+            try:
+                # Channel is prefixed by ' #' and followed by a space
+                return message.split(' #')[1].split()[0]
+            except IndexError:
+                # Some events don't belong to any channels
+                return None
+
+    def  __parse_author(self, message):
+        # author is formated like : ':author!author@author.'
+        regex = re.match(":(.*?)!(\1)@(\1)\.", message)
+        print("pouet")
+        print(regex.group())
+        print(regex.group(1))
+        return message[regex.start(1):regex.end(1)]
+
+    def __parse_content(self, message, channel, type):
+        pass
 
     def get_message(self) -> list:
         pass
