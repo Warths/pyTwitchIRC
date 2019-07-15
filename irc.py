@@ -2,7 +2,6 @@ import threading
 import socket
 import time
 import event
-import datetime
 import re
 
 class IRC:
@@ -82,10 +81,10 @@ class IRC:
 
         # Map of events with callback method
         self.callbacks = [
-            (":tmi.twitch.tv CAP * ACK :twitch.tv/membership", self.__cap_ack, ("MEMBERSHIP")),
-            (":tmi.twitch.tv CAP * ACK :twitch.tv/commands", self.__cap_ack, ("COMMANDS")),
-            (":tmi.twitch.tv CAP * ACK :twitch.tv/tags", self.__cap_ack, ("TAGS")),
-            ("PING :tmi.twitch.tv", self.__send_pong, None)
+            ("CAP", self.__cap_ack, (self.message_buffer, "membership")),
+            ("CAP", self.__cap_ack, (self.message_buffer, "commands")),
+            ("CAP", self.__cap_ack, (self.message_buffer, "tags")),
+            ("PING", self.__send_pong, None)
         ]
 
         # Starting a parallel thread to keep the IRC client running
@@ -99,7 +98,7 @@ class IRC:
             # run through the callback list
             for c in self.callbacks:
                 # if the first message is a callback run the associated method
-                if self.message_buffer[0] == c[0]:
+                if self.parse(self.message_buffer[0]).type == c[0]:
                     # if the method doesn't need parameters
                     if c[2] is None:
                         c[1]()
@@ -129,9 +128,19 @@ class IRC:
         self.__request_capabilities("tags")
         self.__request_capabilities("membership")
 
-    def __cap_ack(self, capability):
-        print("Cap {} got acknowledge.".format(capability[0]))
-        self.cap_ack[capability[0]] = True
+    def __cap_ack(self, array):
+        message = array[0][0]
+        target = array[1]
+        message_type = self.__parse_type(message)
+        channel = self.__parse_channel(message, message_type)
+        content = self.__parse_content(message, channel, message_type)
+        if content.split(target) != content:
+            self.__notice("Cap {} got acknowledge.".format(array[1]))
+            self.cap_ack[target.uppercase()] = True
+            return True
+        else:
+            self.__notice("not a CAP ACK")
+            return False
 
     def __open_socket(self) -> None:
         if self.socket:
@@ -151,7 +160,6 @@ class IRC:
         print("Ping received. PONG sent.")
         self.socket.send('PONG :tmi.twitch.tv\r\n'.encode("UTF-8"))
 
-
     def __init_room(self):
         pass
 
@@ -163,6 +171,7 @@ class IRC:
 
     def __request_capabilities(self, arg: str):
         self.socket.send('CAP REQ :twitch.tv/{}\r\n'.format(arg).encode('utf-8'))
+
     def __is_loading_complete(self):
         pass
 
@@ -179,6 +188,8 @@ class IRC:
         for message in messages:
             decoded = message.decode("utf-8")
             print(decoded)
+            parsed = self.parse(decoded)
+            print(parsed.dump())
             self.message_buffer.append(decoded)
 
     # send a channel connection request
@@ -207,34 +218,36 @@ class IRC:
 
     def parse(self, message):
         tags = self.__parse_tags(message)
-        type = self.__parse_type(message)
-        channel = self.__parse_channel(message, type)
+        message_type = self.__parse_type(message)
+        channel = self.__parse_channel(message, message_type)
         author = self.__parse_author(message)
-        return event.Event(message, type=type, tags=tags, channel=channel, author=author)
+        return event.Event(message, type=message_type, tags=tags, channel=channel, author=author)
 
     def __parse_tags(self, message):
         # Checking if there is tags
         if message[0] == '@':
-            # Isolating tags (beetween '@' and ' :')
+            # Isolating tags (between '@' and ' :')
             tags = message[1:].split(' :')[0]
             tags = self.__parse_tags_dict(tags, ';', '=')
-            # Parsing subdict (separator : '/' and ',')
+            # Parsing sub dict (separator : '/' and ',')
             for key in tags:
+                # undocumented tag, not processed #twitch
                 if key == 'flags':
                     pass
+                # if the tag contain ':' it's a dict containing lists
                 elif ':' in tags[key]:
                     tags[key] = self.__parse_tags_dict(tags[key], '/', ':')
                     for sub_key in tags[key]:
                         tags[key][sub_key] = self.__parse_list(tags[key][sub_key], ',')
                         for i in range(0, len(tags[key][sub_key])):
                             tags[key][sub_key][i] = self.__parse_list(tags[key][sub_key][i], '-')
+                # if the tag contain '/' it's a dict containing ints
                 elif '/' in tags[key]:
                     tags[key] = self.__parse_tags_dict(tags[key], ',', '/')
-
             return tags
 
-
-    def __parse_tags_dict(self, tag_dict_string, separator_a, separator_b):
+    @staticmethod
+    def __parse_tags_dict(tag_dict_string, separator_a, separator_b):
         # Separating tags (separator : ";" )
         tag_list = tag_dict_string.split(separator_a)
         tag_dict = {}
@@ -244,18 +257,20 @@ class IRC:
             tag_dict[key] = value
         return tag_dict
 
-    def __parse_list(self, list_string, separator):
+    @staticmethod
+    def __parse_list(list_string, separator):
         return list_string.split(separator)
 
-    def __parse_type(self, message):
+    @staticmethod
+    def __parse_type(message):
         split = message.split()
         for word in split:
             if word.upper() == word:
                 return word
 
-    def __parse_channel(self, message, type):
+    def __parse_channel(self, message, message_type):
         # Channel in a whisper is always the client nickname
-        if type == 'WHISPER':
+        if message_type == 'WHISPER':
             return self.nickname
         else:
             try:
@@ -265,22 +280,38 @@ class IRC:
                 # Some events don't belong to any channels
                 return None
 
-    def  __parse_author(self, message):
-        # author is formated like : ':author!author@author.'
+    @staticmethod
+    def __parse_author(message):
+        # author is formatted like : ':author!author@author.'
         try:
             return message.split('!')[1].split('@')[0]
         except IndexError:
             return None
 
-    def __parse_author_regex(self, message):
+    @staticmethod
+    def __parse_author_regex(message):
         # 2 hours to create search string:
         try:
             return re.search(r':(.*?)!(\1)@(\1)\.', message).group(1)
         except:
             return None
 
-    def __parse_content(self, message, channel, type):
-        pass
+    @staticmethod
+    def __parse_content(message, channel, message_type):
+        target = channel + " " + message_type
+        content = message.split(target)
+        if content != message:
+            return content
+        else:
+            return None
 
     def get_message(self) -> list:
         pass
+
+    @staticmethod
+    def __notice(text: str):
+        print('\33[32m' + text + '\33[0m')
+
+    @staticmethod
+    def __warning(text: str):
+        print('\33[31m' + text + '\33[0m')
