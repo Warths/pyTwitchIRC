@@ -3,7 +3,7 @@ import socket
 import time
 import event
 import re
-
+import select
 
 class IRC:
 
@@ -23,7 +23,7 @@ class IRC:
 
         self.socket = None
         self.buffer = b''
-        self.last_ping = None
+        self.last_ping = time.time()
         self.connected_channels = []
         self.message_buffer = []
         self.received_messages = []
@@ -37,10 +37,25 @@ class IRC:
 
         # Map of events with callback method
         self.callbacks = [
-            ("CAP", self.__cap_ack, (self.message_buffer, "membership")),
-            ("CAP", self.__cap_ack, (self.message_buffer, "commands")),
-            ("CAP", self.__cap_ack, (self.message_buffer, "tags")),
-            ("PING", self.__send_pong, None)
+            {
+                'type': 'PING',
+                'method': self.__send_pong
+            },
+            {
+                'type': 'CAP',
+                'method': self.cap_ack,
+                'args': ['message']
+            },
+            {
+                'type': '376',
+                'method': 'self.__set_status',
+                'args': [1]
+            },
+            {
+                'type': '366',
+                'method': 'self.__add_connected_channel',
+                'args': ['message']
+            }
         ]
 
         # Starting a parallel thread to keep the IRC client running
@@ -48,31 +63,35 @@ class IRC:
         thread.daemon = True
         thread.start()
 
-    def __check_callback(self):
-        return
-        # while there is messages in the messages buffer
-        while len(self.message_buffer) > 0:
-            # run through the callback list
-            for c in self.callbacks:
-                # if the first message is a callback run the associated method
-                if self.parse(self.message_buffer[0]).type == c[0]:
-                    # if the method doesn't need parameters
-                    if c[2] is None:
-                        c[1]()
-                    # if the method does need parameters
-                    else:
-                        c[1](c[2])
-            # pop out the message from the messages buffer and append it to the received messages
-            self.received_messages.append(self.message_buffer.pop(0))
+    def __check_callback(self, message):
+        pass
 
     def __run(self):
-        self.__connect()
-        self.channel_join("warths")
+        i = 0
         while True:
-            self.__receive_data()
-            self.__check_callback()
-            time.sleep(0.1)
-            pass
+            try:
+                self.__connect()
+                self.channel_join("warths")
+                while True:
+                    i += 1
+                    print(i)
+                    self.__receive_data()
+                    if i == 100:
+                        self.channel_part("warths")
+                    while len(self.message_buffer) > 0:
+                        message = self.parse(self.message_buffer.pop(0))
+                        self.__check_callback(message)
+                        self.received_messages.append(message)
+
+            except socket.gaierror:
+                print("GaiError Raised. Trying to reconnect.")
+                self.socket = None
+                time.sleep(5)
+            except socket.timeout:
+                print("Timeout error raised. Trying to reconnect.")
+                self.socket = None
+                time.sleep(5)
+
 
     def __connect(self):
         self.__open_socket()
@@ -86,19 +105,7 @@ class IRC:
         self.__request_capabilities("membership")
 
     def __cap_ack(self, array):
-        return True
-        message = array[0][0]
-        target = array[1]
-        message_type = self.__parse_type(message)
-        channel = self.__parse_channel(message, message_type)
-        content = self.__parse_content(message, channel, message_type)
-        if content.split(target) != content:
-            self.__notice("Cap {} got acknowledge.".format(array[1]))
-            self.cap_ack[target.upper()] = True
-            return True
-        else:
-            self.__notice("not a CAP ACK")
-            return False
+        pass
 
     def __open_socket(self) -> None:
         if self.socket:
@@ -108,6 +115,7 @@ class IRC:
     def __connect_socket(self) -> bool:
         try:
             self.socket.connect((self.host, self.port))
+            self.socket.setblocking(0)
             print('Connected to {0[0]}:{0[1]}'.format(self.socket.getpeername()))
             return True
         except socket.gaierror:
@@ -115,8 +123,9 @@ class IRC:
             return False
 
     def __send_pong(self) -> None:
-        print("Ping received. PONG sent.")
+        self.last_ping = time.time()
         self.socket.send('PONG :tmi.twitch.tv\r\n'.encode("UTF-8"))
+        self.__notice('Ping Received. Pong sent.')
 
     def __init_room(self):
         pass
@@ -133,10 +142,14 @@ class IRC:
     def __is_loading_complete(self):
         pass
 
-    def __check_heartbeat(self):
-        pass
+
+    def __is_timed_out(self):
+        return time.time() - self.last_ping > 300
 
     def __receive_data(self):
+        ready = select.select([self.socket], [], [], 0.1)
+        if not ready[0]:
+            return
         # get up to 1024 from the buffer and the socket then split the messages
         self.buffer += self.socket.recv(1024)
         messages = self.buffer.split(b'\r\n')
@@ -146,12 +159,31 @@ class IRC:
         for message in messages:
             decoded = message.decode("utf-8")
             print(decoded)
-            parsed = self.parse(decoded)
             self.message_buffer.append(decoded)
 
     def channel_join(self, channel: str):
         # send a channel connection request
         self.socket.send('JOIN #{}\r\n'.format(channel).encode('utf-8'))
+
+
+    def on_join_handler(self, message):
+        if message.author == self.nickname:
+            self.__notice('Successfuly connected to {}'.format(message.channel))
+            self.connected_channels.append(message.channel)
+        else:
+            # TODO MANAGE CHATTER LIST
+            pass
+
+    def on_part_handler(self, message):
+        if message.author == self.nickname:
+            self.__notice('Successfuly disconnected from {}'.format(message.channel))
+            try:
+                self.connected_channels.remove(message.channel)
+            except ValueError:
+                self.__warning('Tried to disconnect from a non-connected channel')
+        else:
+            # TODO MANAGE CHATTER LIST
+            pass
 
     def channel_part(self, channel: str):
         # leave a channel
@@ -263,7 +295,9 @@ class IRC:
         return content[1] if len(content) > 1 else None
 
     def get_message(self) -> list:
-        pass
+        messages = self.received_messages
+        self.received_messages = []
+        return messages
 
     @staticmethod
     def __notice(text: str):
