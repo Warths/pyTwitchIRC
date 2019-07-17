@@ -78,6 +78,8 @@ class IRC:
         thread.daemon = True
         thread.start()
 
+        time.sleep(1)
+
     def __run(self):
         while True:
             try:
@@ -220,11 +222,12 @@ class IRC:
 
     # send a channel connection request
     def channel_join(self, channel: str):
-        self.__send('JOIN #{}\r\n'.format(channel))
+        if self.__wait_for_status():
+            self.__send('JOIN #{}\r\n'.format(channel))
 
     # leave a channel
     def channel_part(self, channel: str):
-        if channel in self.channels:
+        if channel in self.channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
     # rejoin all known channels
@@ -242,6 +245,9 @@ class IRC:
     """
     sending methods
     """
+
+    def __anti_throttle(self):
+        pass
 
     def __send(self, packet, obfuscate_after=None):
         self.socket.send(packet.encode('UTF-8'))
@@ -268,30 +274,20 @@ class IRC:
 
     # send a message to a channel and prevent sending to disconnected channels
     def send_message(self, channel: str, message: str):
-        # if client not ready wait until ready
-        if self.status < 2:
-            i = 10
-            while self.status < 2:
-                self.__warning('Client not ready, wait {}s until abort'.format(i))
-                i -= 1
-                time.sleep(1)
-                if i < 0:
-                    break
+        if self.__wait_for_status():
+            # if channel not connected, try to connect
+            if channel not in self.channels:
+                self.channel_join(channel)
+                i = 10
+                while channel not in self.channels:
+                    self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
+                    i -= 1
+                    time.sleep(1)
+                    if i < 0:
+                        break
 
-        # if channel not connected, try to connect
-        if channel not in self.channels:
-            self.channel_join(channel)
-            i = 10
-            while channel not in self.channels:
-                self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
-                i -= 1
-                time.sleep(1)
-                if i < 0:
-                    break
-
-        packet = "PRIVMSG #{} : {}\r\n".format(channel, message)
-        self.__send(packet)
-        pass
+            packet = "PRIVMSG #{} : {}\r\n".format(channel, message)
+            self.__send(packet)
 
     # send a IRC capability request
     def __request_capabilities(self, arg: str):
@@ -300,6 +296,18 @@ class IRC:
     # check IRC time out state
     def __is_timed_out(self):
         return time.time() - self.last_ping > 300
+
+    def __wait_for_status(self, target=2, timeout=10) -> bool:
+        # if client not ready wait until ready
+        if self.status < target:
+            while self.status < target:
+                self.__warning('Client not ready, current status is {} expect {},'.format(self.status, target) +
+                               ' wait {}s until abort'.format(timeout))
+                timeout -= 1
+                time.sleep(1)
+                if timeout < 0:
+                    return False
+        return True
 
     """
     parsing methods
