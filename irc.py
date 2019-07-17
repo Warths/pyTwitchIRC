@@ -7,27 +7,30 @@ import select
 
 class IRC:
 
-    def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667):
+    def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667, log_settings=[1, 1, 1, 1]):
         """
 
         :param nickname: lowercase twitch username of the bot
         :param oauth: chat authentication key. Can be found on twitchapps.com/tmi
         :param host: twitch server to connect with
         :param port: twitch server port to connect with
+        :param log_settings: [notice, warning, send, received] set the logging fashion
         """
 
         self.nickname = nickname.lower()
         self.oauth = oauth
         self.host = host
         self.port = port
+        self.log_settings = log_settings
 
         self.socket = None
         self.buffer = b''
         self.last_ping = time.time()
+
         self.event = CurrentEvent()
         self.channels = {}
-        self.message_buffer = []
-        self.received_messages = []
+        self.event_buffer = []
+        self.received_event = []
         self.status = 0
 
         self.cap_ack = {
@@ -55,17 +58,17 @@ class IRC:
             },
             {
                 'type': 'JOIN',
-                'method': self.on_join_handler,
+                'method': self.__on_join_handler,
                 'args': [self.event]
             },
             {
                 'type': 'PART',
-                'method': self.on_part_handler,
+                'method': self.__on_part_handler,
                 'args': [self.event]
             },
             {
                 'type': '353',
-                'method': self.on_353_handler,
+                'method': self.__on_353_handler,
                 'args': [self.event]
             }
         ]
@@ -75,37 +78,35 @@ class IRC:
         thread.daemon = True
         thread.start()
 
-    def __check_callback(self):
-        for handlers in self.callbacks:
-            if self.event.type == handlers['type']:
-                handlers['method'](*handlers['args'])
-
-    def __set_status(self, status):
-        self.status = status
-
     def __run(self):
         while True:
             try:
+                self.__set_status(0)
                 self.__connect()
-                self.channel_join("mepha")
+                self.channel_join_all()
                 while True:
+                    if self.__is_timed_out():
+                        self.__warning('Client didn\'t receive ping for too long')
+                        raise socket.timeout
                     self.__receive_data()
-                    while len(self.message_buffer) > 0:
-                        event = self.parse(self.message_buffer.pop(0))
+                    while len(self.event_buffer) > 0:
+                        event = self.parse(self.event_buffer.pop(0))
                         self.event.update(event)
                         self.__check_callback()
-                        self.received_messages.append(event)
+                        if self.status >= 2:
+                            self.received_event.append(event)
 
             except socket.gaierror:
-                print("GaiError Raised. Trying to reconnect.")
+                self.__warning("GaiError Raised. Trying to reconnect.")
                 self.socket = None
                 time.sleep(5)
             except socket.timeout:
-                print("Timeout error raised. Trying to reconnect.")
+                self.__warning("Timeout error raised. Trying to reconnect.")
                 self.socket = None
                 time.sleep(5)
 
     def __connect(self):
+        # setup the connection
         self.__open_socket()
         self.__connect_socket()
         self.__send_pass()
@@ -116,15 +117,70 @@ class IRC:
         self.__request_capabilities("tags")
         self.__request_capabilities("membership")
 
+    def __check_callback(self):
+        for handlers in self.callbacks:
+            if self.event.type == handlers['type']:
+                handlers['method'](*handlers['args'])
+
+    def __set_status(self, status):
+        self.status = status
+
+    # get all received event and clear event buffer
+    def get_event(self) -> list:
+        events = self.received_event
+        self.received_event = []
+        return events
+
+    """
+    Handlers
+    """
+
     def __on_cap_handler(self, event):
         try:
             self.cap_ack[event.content] = True
+            if self.cap_ack['twitch.tv/membership'] and self.cap_ack['twitch.tv/tags'] and self.cap_ack['twitch.tv/commands']:
+                self.status = 2
+            if not self.log_settings[3]:
+                self.__notice('Capability {} acknowledged'.format(event.content))
+
         except KeyError:
             self.__warning("Unsupported Cap Ack received : {}".format(event.content))
 
-    def on_353_handler(self, event):
+    # fetch chatter names
+    def __on_353_handler(self, event) -> None:
         for chatter in event.content.split(' '):
             self.channels[event.channel].append(chatter)
+
+    # notify a successful connection or a chatter joining
+
+    def __on_join_handler(self, event):
+        if event.author == self.nickname:
+            self.__notice('Successfully connected to {}'.format(event.channel))
+            self.channels[event.channel] = []
+        else:
+            self.channels[event.channel].append(event.author)
+
+    # notify a channel disconnection or a chatter leaving
+    def __on_part_handler(self, event):
+        # if trigger by the client
+        if event.author == self.nickname:
+            try:
+                self.channels.pop(event.channel)
+                self.__notice('Successfully disconnected from {}'.format(event.channel))
+            except KeyError:
+                self.__warning('Channel {author} disconnected, '
+                               'but wasn\'t connected'.format(**event.__dict__))
+        # if trigger by other chatter
+        else:
+            try:
+                self.channels[event.channel].remove(event.author)
+            except ValueError:
+                self.__warning('User {author} disconnected from {channel}, '
+                               'but wasn\'t connected'.format(**event.__dict__))
+
+    """
+    socket
+    """
 
     def __open_socket(self) -> None:
         if self.socket:
@@ -141,86 +197,41 @@ class IRC:
             self.__warning('Unable to connect.')
             return False
 
-    def __send_pong(self) -> None:
-        self.last_ping = time.time()
-        self.__send('PONG :tmi.twitch.tv\r\n')
-        self.__notice('Ping Received. Pong sent.')
-
-    def __send(self, packet, hide_after_index=None):
-        self.socket.send(packet.encode('UTF-8'))
-        if hide_after_index:
-            # creating '**..' string with the lenght required
-            packet_hidden = '*' * (len(packet) - hide_after_index)
-            packet = packet[0:hide_after_index] + packet_hidden
-        self.__packet_sent(packet)
-
-    def __init_room(self):
-        pass
-
-    def __send_nickname(self):
-        self.__send('NICK {}\r\n'.format(self.nickname))
-
-    def __send_pass(self):
-        self.__send('PASS {}\r\n'.format(self.oauth), hide_after_index=11)
-
-    def __request_capabilities(self, arg: str):
-        self.__send('CAP REQ :twitch.tv/{}\r\n'.format(arg))
-
-    def __is_loading_complete(self):
-        pass
-
-    def __is_timed_out(self):
-        return time.time() - self.last_ping > 300
-
+    # fetch data from the socket
     def __receive_data(self):
+        # try to retrieve data from socket, timeout if nothing for .1 second
         ready = select.select([self.socket], [], [], 0.1)
         if not ready[0]:
             return
-        # get up to 1024 from the buffer and the socket then split the messages
+        # get up to 1024 from the buffer and the socket then split the events
         self.buffer += self.socket.recv(1024)
-        messages = self.buffer.split(b'\r\n')
-        self.buffer = messages.pop()
+        events = self.buffer.split(b'\r\n')
+        self.buffer = events.pop()
 
-        # print all the messages
-        for message in messages:
-            decoded = message.decode("utf-8")
+        # print all the events
+        for event in events:
+            decoded = event.decode("utf-8")
             self.__packet_received(decoded)
-            self.message_buffer.append(decoded)
+            self.event_buffer.append(decoded)
 
+    """
+    channels management
+    """
+
+    # send a channel connection request
     def channel_join(self, channel: str):
-        # send a channel connection request
         self.__send('JOIN #{}\r\n'.format(channel))
 
-    def on_join_handler(self, event):
-        if event.author == self.nickname:
-            self.__notice('Successfuly connected to {}'.format(event.channel))
-            self.channels[event.channel] = []
-        else:
-            self.channels[event.channel].append(event.author)
-
-    def on_part_handler(self, event):
-        if event.author == self.nickname:
-            self.__notice('Successfuly disconnected from {}'.format(event.channel))
-            try:
-                self.channels.pop(event.channel)
-            except KeyError:
-                self.__warning('Channel {author} disconnected, '
-                               'but wasn\'t connected'.format(**event.__dict__))
-        else:
-            try:
-                self.channels[event.channel].remove(event.author)
-            except ValueError:
-                self.__warning('User {author} disconnected from {channel}, '
-                               'but wasn\'t connected'.format(**event.__dict__))
-
+    # leave a channel
     def channel_part(self, channel: str):
-        # leave a channel
         if channel in self.channels:
             self.__send('PART #{}\r\n'.format(channel))
 
+    # rejoin all known channels
     def channel_join_all(self):
-        # rejoin all known channels
-        for channel in self.channels:
+        channels = self.channels
+        self.channels = {}
+        for channel in channels:
             self.channel_join(channel)
 
     # leave all connected channels
@@ -228,23 +239,86 @@ class IRC:
         for channel in self.channels:
             self.channel_part(channel)
 
-    # send a message
-    def send_message(self, message: str):
+    """
+    sending methods
+    """
+
+    def __send(self, packet, obfuscate_after=None):
+        self.socket.send(packet.encode('UTF-8'))
+
+        # creating '**..' string with the length required
+        if obfuscate_after:
+            packet_hidden = '*' * (len(packet) - obfuscate_after)
+            packet = packet[0:obfuscate_after] + packet_hidden
+
+        self.__packet_sent(packet)
+
+    # send a packet and log it[, obfuscate after a certain index]
+    def __send_pong(self) -> None:
+        self.last_ping = time.time()
+        self.__send('PONG :tmi.twitch.tv\r\n')
+        if not self.log_settings[2]:
+            self.__notice('Ping Received. Pong sent.')
+
+    def __send_nickname(self):
+        self.__send('NICK {}\r\n'.format(self.nickname))
+
+    def __send_pass(self):
+        self.__send('PASS {}\r\n'.format(self.oauth), 11)
+
+    # send a message to a channel and prevent sending to disconnected channels
+    def send_message(self, channel: str, message: str):
+        # if client not ready wait until ready
+        if self.status < 2:
+            i = 10
+            while self.status < 2:
+                self.__warning('Client not ready, wait {}s until abort'.format(i))
+                i -= 1
+                time.sleep(1)
+                if i < 0:
+                    break
+
+        # if channel not connected, try to connect
+        if channel not in self.channels:
+            self.channel_join(channel)
+            i = 10
+            while channel not in self.channels:
+                self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
+                i -= 1
+                time.sleep(1)
+                if i < 0:
+                    break
+
+        packet = "PRIVMSG #{} : {}\r\n".format(channel, message)
+        self.__send(packet)
         pass
 
-    def parse(self, message):
-        tags = self.__parse_tags(message)
-        message_type = self.__parse_type(message)
-        channel = self.__parse_channel(message, message_type)
-        author = self.__parse_author(message)
-        content = self.__parse_content(message, channel)
-        return Event(message, type=message_type, tags=tags, channel=channel, author=author, content=content)
+    # send a IRC capability request
+    def __request_capabilities(self, arg: str):
+        self.__send('CAP REQ :twitch.tv/{}\r\n'.format(arg))
 
-    def __parse_tags(self, message):
+    # check IRC time out state
+    def __is_timed_out(self):
+        return time.time() - self.last_ping > 300
+
+    """
+    parsing methods
+    """
+
+    # wrapper for parsing methods
+    def parse(self, event):
+        tags = self.__parse_tags(event)
+        event_type = self.__parse_type(event)
+        channel = self.__parse_channel(event, event_type)
+        author = self.__parse_author(event)
+        content = self.__parse_content(event, channel)
+        return Event(event, type=event_type, tags=tags, channel=channel, author=author, content=content)
+
+    def __parse_tags(self, event):
         # Checking if there is tags
-        if message[0] == '@':
+        if event[0] == '@':
             # Isolating tags (between '@' and ' :')
-            tags = message[1:].split(' :')[0]
+            tags = event[1:].split(' :')[0]
             tags = self.__parse_tags_dict(tags, ';', '=')
             # Parsing sub dict (separator : '/' and ',')
             for key in tags:
@@ -279,65 +353,63 @@ class IRC:
         return list_string.split(separator)
 
     @staticmethod
-    def __parse_type(message):
-        split = message.split()
+    def __parse_type(event):
+        split = event.split()
         for word in split:
             if word.upper() == word:
                 return word
 
-    def __parse_channel(self, message, message_type):
+    def __parse_channel(self, event, event_type):
         # Channel in a whisper is always the client nickname
-        if message_type == 'WHISPER':
+        if event_type == 'WHISPER':
             return self.nickname
         else:
             try:
                 # Channel is prefixed by ' #' and followed by a space
-                return message.split(' #')[1].split()[0]
+                return event.split(' #')[1].split()[0]
             except IndexError:
                 # Some events don't belong to any channels
                 return None
 
     @staticmethod
-    def __parse_author(message):
+    def __parse_author(event):
         # author is formatted like : ':author!author@author.'
         try:
-            return message.split('!')[1].split('@')[0]
+            return event.split('!')[1].split('@')[0]
         except IndexError:
             return None
 
+    # unused dev purposes
     @staticmethod
-    def __parse_author_regex(message):
+    def __parse_author_regex(event):
         # 2 hours to create search string:
         try:
-            return re.search(r':(.*?)!(\1)@(\1)\.', message).group(1)
+            return re.search(r':(.*?)!(\1)@(\1)\.', event).group(1)
         except IndexError:
             return None
 
     @staticmethod
-    def __parse_content(message, channel):
+    def __parse_content(event, channel):
         target = " :"
         if channel:
             target = channel + target
-        content = message.split(target, maxsplit=1)
+        content = event.split(target, maxsplit=1)
         return content[1] if len(content) > 1 else None
 
-    def get_message(self) -> list:
-        messages = self.received_messages
-        self.received_messages = []
-        return messages
+    """logging methods"""
 
-    @staticmethod
-    def __notice(text: str):
-        print('\33[32m' + text + '\33[0m')
+    def __notice(self, text: str):
+        if self.log_settings[0]:
+            print('\33[32m' + text + '\33[0m')
 
-    @staticmethod
-    def __warning(text: str):
-        print('\33[31m' + text + '\33[0m')
+    def __warning(self, text: str):
+        if self.log_settings[1]:
+            print('\33[31m' + text + '\33[0m')
 
-    @staticmethod
-    def __packet_received(text: str):
-        print('\33[36m<' + text + '\33[0m')
+    def __packet_received(self, text: str):
+        if self.log_settings[2]:
+            print('\33[36m<' + text + '\33[0m')
 
-    @staticmethod
-    def __packet_sent(text: str):
-        print('\33[34m>' + text.strip("\n") + '\33[0m')
+    def __packet_sent(self, text: str):
+        if self.log_settings[3]:
+            print('\33[34m>' + text.strip("\n") + '\33[0m')
