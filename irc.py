@@ -7,7 +7,8 @@ import select
 
 class IRC:
 
-    def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667, log_settings=[1, 1, 1, 1]):
+    def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
+                 log_settings=[1, 1, 1, 1], throttle=20):
         """
 
         :param nickname: lowercase twitch username of the bot
@@ -17,30 +18,32 @@ class IRC:
         :param log_settings: [notice, warning, send, received] set the logging fashion
         """
 
-        self.nickname = nickname.lower()
-        self.oauth = oauth
-        self.host = host
-        self.port = port
-        self.log_settings = log_settings
+        self.__nickname = nickname.lower()
+        self.__oauth = oauth
+        self.__host = host
+        self.__port = port
+        self.__log_settings = log_settings
+        self.__throttle = throttle
 
-        self.socket = None
-        self.buffer = b''
-        self.last_ping = time.time()
+        self.__socket = None
+        self.__buffer = b''
+        self.__last_ping = time.time()
 
-        self.event = CurrentEvent()
-        self.channels = {}
-        self.event_buffer = []
-        self.received_event = []
-        self.status = 0
+        self.__event = CurrentEvent()
+        self.__event_sent_date = []
+        self.__channels = {}
+        self.__event_buffer = []
+        self.__received_event = []
+        self.__status = 0
 
-        self.cap_ack = {
+        self.__capabilities_acknowledged = {
             "twitch.tv/tags": False,
             "twitch.tv/commands": False,
             "twitch.tv/membership": False
         }
 
         # Map of events with callback method
-        self.callbacks = [
+        self.__callbacks = [
             {
                 'type': 'PING',
                 'method': self.__send_pong,
@@ -49,7 +52,7 @@ class IRC:
             {
                 'type': 'CAP',
                 'method': self.__on_cap_handler,
-                'args': [self.event]
+                'args': [self.__event]
             },
             {
                 'type': '376',
@@ -59,24 +62,24 @@ class IRC:
             {
                 'type': 'JOIN',
                 'method': self.__on_join_handler,
-                'args': [self.event]
+                'args': [self.__event]
             },
             {
                 'type': 'PART',
                 'method': self.__on_part_handler,
-                'args': [self.event]
+                'args': [self.__event]
             },
             {
                 'type': '353',
                 'method': self.__on_353_handler,
-                'args': [self.event]
+                'args': [self.__event]
             }
         ]
 
         # Starting a parallel thread to keep the IRC client running
-        thread = threading.Thread(target=self.__run, args=())
-        thread.daemon = True
-        thread.start()
+        __thread = threading.Thread(target=self.__run, args=())
+        __thread.daemon = True
+        __thread.start()
 
         time.sleep(1)
 
@@ -85,27 +88,36 @@ class IRC:
             try:
                 self.__set_status(0)
                 self.__connect()
+                
                 self.channel_join_all()
                 while True:
                     if self.__is_timed_out():
                         self.__warning('Client didn\'t receive ping for too long')
                         raise socket.timeout
                     self.__receive_data()
-                    while len(self.event_buffer) > 0:
-                        event = self.parse(self.event_buffer.pop(0))
-                        self.event.update(event)
+                    while len(self.__event_buffer) > 0:
+                        event = self.parse(self.__event_buffer.pop(0))
+                        self.__event.update(event)
                         self.__check_callback()
-                        if self.status >= 2:
-                            self.received_event.append(event)
+                        if self.__status >= 2:
+                            self.__received_event.append(event)
 
             except socket.gaierror:
                 self.__warning("GaiError Raised. Trying to reconnect.")
-                self.socket = None
+                self.__socket = None
+                self.__set_status(0)
                 time.sleep(5)
             except socket.timeout:
                 self.__warning("Timeout error raised. Trying to reconnect.")
-                self.socket = None
+                self.__socket = None
+                self.__set_status(0)
                 time.sleep(5)
+            except ConnectionResetError:
+                self.__warning("ConnectionResetError raised. Trying to reconnect.")
+                self.__socket = None
+                self.__set_status(0)
+                time.sleep(5)
+
 
     def __connect(self):
         # setup the connection
@@ -115,22 +127,22 @@ class IRC:
         self.__send_nickname()
 
         # request all the IRC capabilities
-        self.__request_capabilities("commands")
-        self.__request_capabilities("tags")
-        self.__request_capabilities("membership")
+        self.__request_capabilities("twitch.tv/commands")
+        self.__request_capabilities("twitch.tv/tags")
+        self.__request_capabilities("twitch.tv/membership")
 
     def __check_callback(self):
-        for handlers in self.callbacks:
-            if self.event.type == handlers['type']:
+        for handlers in self.__callbacks:
+            if self.__event.type == handlers['type']:
                 handlers['method'](*handlers['args'])
 
     def __set_status(self, status):
-        self.status = status
+        self.__status = status
 
     # get all received event and clear event buffer
     def get_event(self) -> list:
-        events = self.received_event
-        self.received_event = []
+        events = self.__received_event
+        self.__received_event = []
         return events
 
     """
@@ -139,11 +151,11 @@ class IRC:
 
     def __on_cap_handler(self, event):
         try:
-            self.cap_ack[event.content] = True
-            if self.cap_ack['twitch.tv/membership'] and self.cap_ack['twitch.tv/tags'] and self.cap_ack['twitch.tv/commands']:
-                self.status = 2
-            if not self.log_settings[3]:
-                self.__notice('Capability {} acknowledged'.format(event.content))
+            self.__capabilities_acknowledged[event.content] = True
+            if self.__capabilities_acknowledged['twitch.tv/membership'] and self.__capabilities_acknowledged['twitch.tv/tags'] and self.__capabilities_acknowledged['twitch.tv/commands']:
+                self.__status = 2
+            if not self.__log_settings[3]:
+                self.__notice('Capability {} got acknowledged'.format(event.content))
 
         except KeyError:
             self.__warning("Unsupported Cap Ack received : {}".format(event.content))
@@ -151,23 +163,23 @@ class IRC:
     # fetch chatter names
     def __on_353_handler(self, event) -> None:
         for chatter in event.content.split(' '):
-            self.channels[event.channel].append(chatter)
+            self.__channels[event.channel].append(chatter)
 
     # notify a successful connection or a chatter joining
 
     def __on_join_handler(self, event):
-        if event.author == self.nickname:
+        if event.author == self.__nickname:
             self.__notice('Successfully connected to {}'.format(event.channel))
-            self.channels[event.channel] = []
+            self.__channels[event.channel] = []
         else:
-            self.channels[event.channel].append(event.author)
+            self.__channels[event.channel].append(event.author)
 
     # notify a channel disconnection or a chatter leaving
     def __on_part_handler(self, event):
         # if trigger by the client
-        if event.author == self.nickname:
+        if event.author == self.__nickname:
             try:
-                self.channels.pop(event.channel)
+                self.__channels.pop(event.channel)
                 self.__notice('Successfully disconnected from {}'.format(event.channel))
             except KeyError:
                 self.__warning('Channel {author} disconnected, '
@@ -175,7 +187,7 @@ class IRC:
         # if trigger by other chatter
         else:
             try:
-                self.channels[event.channel].remove(event.author)
+                self.__channels[event.channel].remove(event.author)
             except ValueError:
                 self.__warning('User {author} disconnected from {channel}, '
                                'but wasn\'t connected'.format(**event.__dict__))
@@ -185,15 +197,15 @@ class IRC:
     """
 
     def __open_socket(self) -> None:
-        if self.socket:
+        if self.__socket:
             raise Exception('Socket already exists')
-        self.socket = socket.socket()
+        self.__socket = socket.socket()
 
     def __connect_socket(self) -> bool:
         try:
-            self.socket.connect((self.host, self.port))
-            self.socket.setblocking(0)
-            self.__notice('Connected to {0[0]}:{0[1]}'.format(self.socket.getpeername()))
+            self.__socket.connect((self.__host, self.__port))
+            self.__socket.setblocking(0)
+            self.__notice('Connected to {0[0]}:{0[1]}'.format(self.__socket.getpeername()))
             return True
         except socket.gaierror:
             self.__warning('Unable to connect.')
@@ -202,19 +214,19 @@ class IRC:
     # fetch data from the socket
     def __receive_data(self):
         # try to retrieve data from socket, timeout if nothing for .1 second
-        ready = select.select([self.socket], [], [], 0.1)
+        ready = select.select([self.__socket], [], [], 0.1)
         if not ready[0]:
             return
         # get up to 1024 from the buffer and the socket then split the events
-        self.buffer += self.socket.recv(1024)
-        events = self.buffer.split(b'\r\n')
-        self.buffer = events.pop()
+        self.__buffer += self.__socket.recv(1024)
+        events = self.__buffer.split(b'\r\n')
+        self.__buffer = events.pop()
 
         # print all the events
         for event in events:
             decoded = event.decode("utf-8")
             self.__packet_received(decoded)
-            self.event_buffer.append(decoded)
+            self.__event_buffer.append(decoded)
 
     """
     channels management
@@ -227,31 +239,43 @@ class IRC:
 
     # leave a channel
     def channel_part(self, channel: str):
-        if channel in self.channels and self.__wait_for_status():
+        if channel in self.__channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
     # rejoin all known channels
     def channel_join_all(self):
-        channels = self.channels
-        self.channels = {}
+        channels = self.__channels
+        self.__channels = {}
         for channel in channels:
             self.channel_join(channel)
 
     # leave all connected channels
     def channel_part_all(self):
-        for channel in self.channels:
+        for channel in self.__channels:
             self.channel_part(channel)
 
     """
     sending methods
     """
 
+    # Lock __send if throttling
     def __anti_throttle(self):
-        pass
+        while len(self.__event_sent_date) >= self.__throttle:
+
+            # check if event is older than 30 seconds
+            if time.time() - self.__event_sent_date[0] > 30: # seconds
+                self.__event_sent_date.pop(0)
+
+            # Wait until next event can be popped out
+            else:
+                wait = 30 - (time.time() - self.__event_sent_date[0])
+                self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2), self.__throttle))
+                time.sleep(wait)
 
     def __send(self, packet, obfuscate_after=None):
-        self.socket.send(packet.encode('UTF-8'))
-
+        self.__anti_throttle()
+        self.__socket.send(packet.encode('UTF-8'))
+        self.__event_sent_date.append(time.time())
         # creating '**..' string with the length required
         if obfuscate_after:
             packet_hidden = '*' * (len(packet) - obfuscate_after)
@@ -261,25 +285,26 @@ class IRC:
 
     # send a packet and log it[, obfuscate after a certain index]
     def __send_pong(self) -> None:
-        self.last_ping = time.time()
+        self.__last_ping = time.time()
         self.__send('PONG :tmi.twitch.tv\r\n')
-        if not self.log_settings[2]:
+        if not self.__log_settings[2]:
             self.__notice('Ping Received. Pong sent.')
 
     def __send_nickname(self):
-        self.__send('NICK {}\r\n'.format(self.nickname))
+        self.__send('NICK {}\r\n'.format(self.__nickname))
 
     def __send_pass(self):
-        self.__send('PASS {}\r\n'.format(self.oauth), 11)
+        self.__send('PASS {}\r\n'.format(self.__oauth), 11)
 
     # send a message to a channel and prevent sending to disconnected channels
     def send_message(self, channel: str, message: str):
         if self.__wait_for_status():
             # if channel not connected, try to connect
-            if channel not in self.channels:
+            if channel not in self.__channels:
+                print('channel join')
                 self.channel_join(channel)
                 i = 10
-                while channel not in self.channels:
+                while channel not in self.__channels:
                     self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
                     i -= 1
                     time.sleep(1)
@@ -291,18 +316,22 @@ class IRC:
 
     # send a IRC capability request
     def __request_capabilities(self, arg: str):
-        self.__send('CAP REQ :twitch.tv/{}\r\n'.format(arg))
+        self.__send('CAP REQ :{}\r\n'.format(arg))
 
     # check IRC time out state
     def __is_timed_out(self):
-        return time.time() - self.last_ping > 300
+        return time.time() - self.__last_ping > 300
 
     def __wait_for_status(self, target=2, timeout=10) -> bool:
         # if client not ready wait until ready
-        if self.status < target:
-            while self.status < target:
-                self.__warning('Client not ready, current status is {} expect {},'.format(self.status, target) +
+        if self.__status < target:
+            while self.__status < target:
+                self.__warning('Client not ready, current status is {} expect {},'.format(self.__status, target) +
                                ' wait {}s until abort'.format(timeout))
+                if self.__status == 1 and target == 2:
+                    for capabilities in self.__capabilities_acknowledged:
+                        if not self.__capabilities_acknowledged[capabilities]:
+                            self.__request_capabilities(capabilities)
                 timeout -= 1
                 time.sleep(1)
                 if timeout < 0:
@@ -370,7 +399,7 @@ class IRC:
     def __parse_channel(self, event, event_type):
         # Channel in a whisper is always the client nickname
         if event_type == 'WHISPER':
-            return self.nickname
+            return self.__nickname
         else:
             try:
                 # Channel is prefixed by ' #' and followed by a space
@@ -407,17 +436,17 @@ class IRC:
     """logging methods"""
 
     def __notice(self, text: str):
-        if self.log_settings[0]:
+        if self.__log_settings[0]:
             print('\33[32m' + text + '\33[0m')
 
     def __warning(self, text: str):
-        if self.log_settings[1]:
+        if self.__log_settings[1]:
             print('\33[31m' + text + '\33[0m')
 
     def __packet_received(self, text: str):
-        if self.log_settings[2]:
+        if self.__log_settings[2]:
             print('\33[36m<' + text + '\33[0m')
 
     def __packet_sent(self, text: str):
-        if self.log_settings[3]:
+        if self.__log_settings[3]:
             print('\33[34m>' + text.strip("\n") + '\33[0m')
