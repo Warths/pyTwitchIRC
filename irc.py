@@ -24,7 +24,7 @@ class IRC:
         self.socket = None
         self.buffer = b''
         self.last_ping = time.time()
-        self.connected_channels = []
+        self.channels = {}
         self.message_buffer = []
         self.received_messages = []
         self.status = 0
@@ -92,7 +92,6 @@ class IRC:
                 self.socket = None
                 time.sleep(5)
 
-
     def __connect(self):
         self.__open_socket()
         self.__connect_socket()
@@ -142,7 +141,6 @@ class IRC:
     def __is_loading_complete(self):
         pass
 
-
     def __is_timed_out(self):
         return time.time() - self.last_ping > 300
 
@@ -165,40 +163,41 @@ class IRC:
         # send a channel connection request
         self.socket.send('JOIN #{}\r\n'.format(channel).encode('utf-8'))
 
-
     def on_join_handler(self, message):
         if message.author == self.nickname:
             self.__notice('Successfuly connected to {}'.format(message.channel))
-            self.connected_channels.append(message.channel)
+            self.channels[message.channel] = []
         else:
-            # TODO MANAGE CHATTER LIST
-            pass
+            self.channels[message.channel].append(message.author)
 
     def on_part_handler(self, message):
         if message.author == self.nickname:
             self.__notice('Successfuly disconnected from {}'.format(message.channel))
             try:
-                self.connected_channels.remove(message.channel)
-            except ValueError:
-                self.__warning('Tried to disconnect from a non-connected channel')
+                self.channels.pop(message.channel)
+            except KeyError:
+                self.__warning('Channel {author} disconnected, '
+                               'but wasn\'t connected'.format(**message.__dict__))
         else:
-            # TODO MANAGE CHATTER LIST
-            pass
+            try:
+                self.channels[message.channel].remove(message.author)
+            except ValueError:
+                self.__warning('User {author} disconnected from {channel}, '
+                               'but wasn\'t connected'.format(**message.__dict__))
 
     def channel_part(self, channel: str):
         # leave a channel
-        if channel in self.connected_channels:
+        if channel in self.channels:
             self.socket.send('PART #{}\r\n'.format(channel).encode('utf-8'))
-            self.connected_channels.remove(channel)
 
     def channel_join_all(self):
         # rejoin all known channels
-        for channel in self.connected_channels:
+        for channel in self.channels:
             self.channel_join(channel)
 
     # leave all connected channels
     def channel_part_all(self):
-        for channel in self.connected_channels:
+        for channel in self.channels:
             self.channel_part(channel)
 
     # send a message
@@ -283,7 +282,7 @@ class IRC:
         # 2 hours to create search string:
         try:
             return re.search(r':(.*?)!(\1)@(\1)\.', message).group(1)
-        except:
+        except IndexError:
             return None
 
     @staticmethod
