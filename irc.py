@@ -30,9 +30,9 @@ class IRC:
         self.status = 0
 
         self.cap_ack = {
-            "MEMBERSHIP": False,
-            "COMMANDS": False,
-            "TAGS": False
+            "twitch.tv/tags": False,
+            "twitch.tv/commands": False,
+            "twitch.tv/membership": False
         }
 
         # Map of events with callback method
@@ -43,17 +43,27 @@ class IRC:
             },
             {
                 'type': 'CAP',
-                'method': self.cap_ack,
+                'method': self.__on_cap_handler,
                 'args': ['message']
             },
             {
                 'type': '376',
-                'method': 'self.__set_status',
+                'method': self.__set_status,
                 'args': [1]
             },
             {
-                'type': '366',
-                'method': 'self.__add_connected_channel',
+                'type': 'JOIN',
+                'method': self.on_join_handler,
+                'args': ['message']
+            },
+            {
+                'type': 'PART',
+                'method': self.on_part_handler,
+                'args': ['message']
+            },
+            {
+                'type': '353',
+                'method': self.on_353_handler,
                 'args': ['message']
             }
         ]
@@ -64,20 +74,26 @@ class IRC:
         thread.start()
 
     def __check_callback(self, message):
-        pass
+        for handlers in self.callbacks:
+            if message.type == handlers['type']:
+                if 'args' in handlers:
+                    if handlers['args'][0] == 'message':
+                        handlers['method'](message)
+                    else:
+                        handlers['method'](*handlers['args'])
+                else:
+                    handlers['method']()
+
+    def __set_status(self, status):
+        self.status = status
 
     def __run(self):
-        i = 0
         while True:
             try:
                 self.__connect()
                 self.channel_join("warths")
                 while True:
-                    i += 1
-                    print(i)
                     self.__receive_data()
-                    if i == 100:
-                        self.channel_part("warths")
                     while len(self.message_buffer) > 0:
                         message = self.parse(self.message_buffer.pop(0))
                         self.__check_callback(message)
@@ -103,8 +119,15 @@ class IRC:
         self.__request_capabilities("tags")
         self.__request_capabilities("membership")
 
-    def __cap_ack(self, array):
-        pass
+    def __on_cap_handler(self, message):
+        try:
+            self.cap_ack[message.content] = True
+        except KeyError:
+            self.__warning("Unsupported Cap Ack received : {}".format(message.content))
+
+    def on_353_handler(self, message):
+        for chatter in message.content.split(' '):
+            self.channels[message.channel].append(chatter)
 
     def __open_socket(self) -> None:
         if self.socket:
@@ -115,28 +138,35 @@ class IRC:
         try:
             self.socket.connect((self.host, self.port))
             self.socket.setblocking(0)
-            print('Connected to {0[0]}:{0[1]}'.format(self.socket.getpeername()))
+            self.__notice('Connected to {0[0]}:{0[1]}'.format(self.socket.getpeername()))
             return True
         except socket.gaierror:
-            print('Unable to connect.')
+            self.__warning('Unable to connect.')
             return False
 
     def __send_pong(self) -> None:
         self.last_ping = time.time()
-        self.socket.send('PONG :tmi.twitch.tv\r\n'.encode("UTF-8"))
+        self.__send('PONG :tmi.twitch.tv\r\n')
         self.__notice('Ping Received. Pong sent.')
+
+    def __send(self, packet, hide_after_index = None):
+        self.socket.send(packet.encode('UTF-8'))
+        if hide_after_index:
+            packet_hidden = '*' * (len(packet) - hide_after_index)
+            packet = packet[0:hide_after_index] + packet_hidden
+        self.__packet_sent(packet)
 
     def __init_room(self):
         pass
 
     def __send_nickname(self):
-        self.socket.sendall('NICK {}\r\n'.format(self.nickname).encode('utf-8'))
+        self.__send('NICK {}\r\n'.format(self.nickname))
 
     def __send_pass(self):
-        self.socket.send('PASS {}\r\n'.format(self.oauth).encode('utf-8'))
+        self.__send('PASS {}\r\n'.format(self.oauth), hide_after_index=11)
 
     def __request_capabilities(self, arg: str):
-        self.socket.send('CAP REQ :twitch.tv/{}\r\n'.format(arg).encode('utf-8'))
+        self.__send('CAP REQ :twitch.tv/{}\r\n'.format(arg))
 
     def __is_loading_complete(self):
         pass
@@ -156,12 +186,12 @@ class IRC:
         # print all the messages
         for message in messages:
             decoded = message.decode("utf-8")
-            print(decoded)
+            self.__packet_received(decoded)
             self.message_buffer.append(decoded)
 
     def channel_join(self, channel: str):
         # send a channel connection request
-        self.socket.send('JOIN #{}\r\n'.format(channel).encode('utf-8'))
+        self.__send('JOIN #{}\r\n'.format(channel))
 
     def on_join_handler(self, message):
         if message.author == self.nickname:
@@ -188,7 +218,7 @@ class IRC:
     def channel_part(self, channel: str):
         # leave a channel
         if channel in self.channels:
-            self.socket.send('PART #{}\r\n'.format(channel).encode('utf-8'))
+            self.__send('PART #{}\r\n'.format(channel))
 
     def channel_join_all(self):
         # rejoin all known channels
@@ -305,3 +335,11 @@ class IRC:
     @staticmethod
     def __warning(text: str):
         print('\33[31m' + text + '\33[0m')
+
+    @staticmethod
+    def __packet_received(text: str):
+        print('\33[36m<' + text + '\33[0m')
+
+    @staticmethod
+    def __packet_sent(text: str):
+        print('\33[34m>' + text.strip("\n") + '\33[0m')
