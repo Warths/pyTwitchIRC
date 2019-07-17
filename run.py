@@ -4,19 +4,20 @@ from os import path
 import json
 import sys
 from credentials import nickname, oauth
+import random
 
 client = IRC(nickname, oauth)
 
 
-# with open(path.join("samples", "samples1.txt"), 'r', encoding='utf-8') as file:
-#     sample = file.read()
-#
-# i = 0
-# for shit in sample.split('\n'):
-#     i += 1
-#     print(json.dumps(client.parse(shit).__dict__, indent=2))
-#     if i == 30:
-#         break
+client.channel_join('ragnar_oock')
+
+def generate_random_string():
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+    string = ''
+    for i in range(1,1):
+        string = string + alphabet[random.randint(0, len(alphabet) - 1)]
+    return string
 
 while True:
-    time.sleep(0.1)
+    client.send_message('ragnar_oock', generate_random_string())
+    time.sleep(1)
