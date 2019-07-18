@@ -73,6 +73,11 @@ class IRC:
                 'type': '353',
                 'method': self.__on_353_handler,
                 'args': [self.__event]
+            },
+            {
+                'type': 'RECONNECT',
+                'method': self.__reset_connection,
+                'args': []
             }
         ]
 
@@ -103,21 +108,18 @@ class IRC:
                             self.__received_event.append(event)
 
             except socket.gaierror:
-                self.__warning("GaiError Raised. Trying to reconnect.")
-                self.__socket = None
-                self.__set_status(0)
-                time.sleep(5)
+                self.__reset_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
-                self.__warning("Timeout error raised. Trying to reconnect.")
-                self.__socket = None
-                self.__set_status(0)
-                time.sleep(5)
+                self.__reset_connection("Timeout Error raised. Trying to reconnect.")
             except ConnectionResetError:
-                self.__warning("ConnectionResetError raised. Trying to reconnect.")
-                self.__socket = None
-                self.__set_status(0)
-                time.sleep(5)
+                self.__reset_connection("ConnectionResetError raised. Trying to reconnect.")
 
+
+    def __reset_connection(self, warn):
+        self.__warning(warn)
+        self.__socket = None
+        self.__set_status(0)
+        time.sleep(5)
 
     def __connect(self):
         # setup the connection
@@ -152,7 +154,9 @@ class IRC:
     def __on_cap_handler(self, event):
         try:
             self.__capabilities_acknowledged[event.content] = True
-            if self.__capabilities_acknowledged['twitch.tv/membership'] and self.__capabilities_acknowledged['twitch.tv/tags'] and self.__capabilities_acknowledged['twitch.tv/commands']:
+            if self.__capabilities_acknowledged['twitch.tv/membership'] and \
+                    self.__capabilities_acknowledged['twitch.tv/tags'] and \
+                    self.__capabilities_acknowledged['twitch.tv/commands']:
                 self.__status = 2
             if not self.__log_settings[3]:
                 self.__notice('Capability {} got acknowledged'.format(event.content))
@@ -263,13 +267,14 @@ class IRC:
         while len(self.__event_sent_date) >= self.__throttle:
 
             # check if event is older than 30 seconds
-            if time.time() - self.__event_sent_date[0] > 30: # seconds
+            if time.time() - self.__event_sent_date[0] > 30:  # seconds
                 self.__event_sent_date.pop(0)
 
             # Wait until next event can be popped out
             else:
                 wait = 30 - (time.time() - self.__event_sent_date[0])
-                self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2), self.__throttle))
+                self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),
+                                                                                        self.__throttle))
                 time.sleep(wait)
 
     def __send(self, packet, obfuscate_after=None):
