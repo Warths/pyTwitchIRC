@@ -117,6 +117,7 @@ class IRC:
 
     def __reset_connection(self, warn):
         self.__warning(warn)
+        self.__last_ping = time.time()
         self.__socket = None
         self.__set_status(0)
         time.sleep(5)
@@ -139,6 +140,14 @@ class IRC:
                 handlers['method'](*handlers['args'])
 
     def __set_status(self, status):
+        if status == 0 and self.__status == 2:
+            self.__warning('STATUS : 0 - Socket died.')
+        elif status == 0:
+            self.__notice('STATUS : 0 - Socket opened')
+        elif status == 1:
+            self.__notice('STATUS : 1 - Socket connected')
+        elif status == 2:
+            self.__notice('STATUS : 2 - Socket ready, buffering messages.')
         self.__status = status
 
     # get all received event and clear event buffer
@@ -157,7 +166,7 @@ class IRC:
             if self.__capabilities_acknowledged['twitch.tv/membership'] and \
                     self.__capabilities_acknowledged['twitch.tv/tags'] and \
                     self.__capabilities_acknowledged['twitch.tv/commands']:
-                self.__status = 2
+                self.__set_status(2)
             if not self.__log_settings[3]:
                 self.__notice('Capability {} got acknowledged'.format(event.content))
 

@@ -19,5 +19,4 @@ def generate_random_string():
     return string
 
 while True:
-    client.send_message('ragnar_oock', generate_random_string())
     time.sleep(1)
