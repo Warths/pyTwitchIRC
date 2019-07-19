@@ -119,6 +119,8 @@ class IRC:
         self.__warning(warn)
         self.__last_ping = time.time()
         self.__socket = None
+        for key in self.__capabilities_acknowledged:
+            self.__capabilities_acknowledged[key] = False
         self.__set_status(0)
         time.sleep(5)
 
