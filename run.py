@@ -42,12 +42,13 @@ def update_irc(irc, liste):
 
 while True:
     liste_stream = get_streams(start_at)
-    print("=========================================")
-    print("Client {} connected channels: {}/{}".format(nickname, len(client.channels), start_at * 100))
-    print("=========================================")
     if start_at < how_many_hundred:
         start_at += 1
     update_irc(client, liste_stream)
+    print("=========================================")
+    print("Client {} connected channels: {}/{}".format(nickname, len(client.channels), start_at * 100))
+    print("=========================================")
+
 
 
 
