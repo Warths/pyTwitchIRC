@@ -1,14 +1,17 @@
-import threading
-import socket
-import time
-from event import Event, CurrentEvent
 import re
 import select
+import socket
+import threading
+import time
+
+
+from event import Event, CurrentEvent
+
 
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=[1, 1, 1, 1], throttle=20):
+                 log_settings=[1, 1, 1, 1], throttle=20, log=False):
         """
 
         :param nickname: lowercase twitch username of the bot
@@ -24,7 +27,10 @@ class IRC:
         self.__port = port
         self.__log_settings = log_settings
         self.__throttle = throttle
+        self.__log = log
 
+        if self.__log:
+            self.__log_file = open("log.txt", "a+")
         self.__socket = None
         self.__buffer = b''
         self.__last_ping = time.time()
@@ -101,11 +107,18 @@ class IRC:
                         raise socket.timeout
                     self.__receive_data()
                     while len(self.__event_buffer) > 0:
-                        event = self.parse(self.__event_buffer.pop(0))
-                        self.__event.update(event)
-                        self.__check_callback()
-                        if self.__status >= 2:
-                            self.__received_event.append(event)
+                        tmp = self.__event_buffer.pop(0)
+                        try:
+                            event = self.parse(tmp)
+                            self.__event.update(event)
+                            self.__check_callback()
+                            if self.__status >= 2:
+                                self.__received_event.append(event)
+                        except Exception as e:
+                            print(tmp, file=open("log.txt", "a"))
+                            print(e)
+                            print(e.args)
+                            self.__warning("appended an error to log.txt")
 
             except socket.gaierror:
                 self.__reset_connection("Gaierror raised. Trying to reconnect.")
@@ -117,7 +130,6 @@ class IRC:
                 self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
             except OSError:
                 self.__reset_connection("OSError raised. Trying to reconnect.")
-
 
     def __reset_connection(self, warn):
         self.__warning(warn)
@@ -185,7 +197,6 @@ class IRC:
             self.channels[event.channel].append(chatter)
 
     # notify a successful connection or a chatter joining
-
     def __on_join_handler(self, event):
         if event.author == self.__nickname:
             self.__notice('Successfully connected to {}'.format(event.channel))
@@ -201,14 +212,14 @@ class IRC:
                 self.channels.pop(event.channel)
                 self.__notice('Successfully disconnected from {}'.format(event.channel))
             except KeyError:
-                self.__warning('Channel {author} disconnected, '
+                self.__notice('Channel {author} disconnected, '
                                'but wasn\'t connected'.format(**event.__dict__))
         # if trigger by other chatter
         else:
             try:
                 self.channels[event.channel].remove(event.author)
             except ValueError:
-                self.__warning('User {author} disconnected from {channel}, '
+                self.__notice('User {author} disconnected from {channel}, '
                                'but wasn\'t connected'.format(**event.__dict__))
 
     """
@@ -382,19 +393,20 @@ class IRC:
                 if key == 'flags':
                     pass
                 # if the tag contain ':' it's a dict containing lists
-                elif ':' in tags[key]:
+                elif ':' in tags[key] and '://' not in tags[key]:
                     tags[key] = self.__parse_tags_dict(tags[key], '/', ':')
                     for sub_key in tags[key]:
                         tags[key][sub_key] = self.__parse_list(tags[key][sub_key], ',')
                         for i in range(0, len(tags[key][sub_key])):
                             tags[key][sub_key][i] = self.__parse_list(tags[key][sub_key][i], '-')
+
                 # if the tag contain '/' it's a dict containing ints
-                elif '/' in tags[key]:
+                elif '/' in tags[key] and '//' not in tags[key]:
                     tags[key] = self.__parse_tags_dict(tags[key], ',', '/')
             return tags
 
     @staticmethod
-    def __parse_tags_dict(tag_dict_string, separator_a, separator_b):
+    def __parse_tags_dict(tag_dict_string: str, separator_a: str, separator_b: str) -> dict:
         # Separating tags (separator : ";" )
         tag_list = tag_dict_string.split(separator_a)
         tag_dict = {}
@@ -456,18 +468,26 @@ class IRC:
 
     """logging methods"""
 
-    def __notice(self, text: str):
+    def __notice(self, text: str) -> None:
         if self.__log_settings[0]:
             print('\33[32m' + text + '\33[0m')
+            if self.__log:
+                print(text, file=self.__log_file)
 
-    def __warning(self, text: str):
+    def __warning(self, text: str) -> None:
         if self.__log_settings[1]:
             print('\33[31m' + text + '\33[0m')
+            if self.__log:
+                print(text, file=self.__log_file)
 
-    def __packet_received(self, text: str):
+    def __packet_received(self, text: str) -> None:
         if self.__log_settings[2]:
             print('\33[36m<' + text + '\33[0m')
+            if self.__log:
+                print(text, file=self.__log_file)
 
-    def __packet_sent(self, text: str):
+    def __packet_sent(self, text: str) -> None:
         if self.__log_settings[3]:
             print('\33[34m>' + text.strip("\n") + '\33[0m')
+            if self.__log:
+                print(text, file=self.__log_file)
