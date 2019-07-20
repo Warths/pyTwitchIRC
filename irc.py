@@ -31,7 +31,7 @@ class IRC:
 
         self.__event = CurrentEvent()
         self.__event_sent_date = []
-        self.__channels = {}
+        self.channels = {}
         self.__event_buffer = []
         self.__received_event = []
         self.__status = 0
@@ -93,7 +93,7 @@ class IRC:
             try:
                 self.__set_status(0)
                 self.__connect()
-                
+
                 self.channel_join_all()
                 while True:
                     if self.__is_timed_out():
@@ -113,6 +113,10 @@ class IRC:
                 self.__reset_connection("Timeout Error raised. Trying to reconnect.")
             except ConnectionResetError:
                 self.__reset_connection("ConnectionResetError raised. Trying to reconnect.")
+            except BrokenPipeError:
+                self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
+            except OSError:
+                self.__reset_connection("OSError raised. Trying to reconnect.")
 
 
     def __reset_connection(self, warn):
@@ -178,23 +182,23 @@ class IRC:
     # fetch chatter names
     def __on_353_handler(self, event) -> None:
         for chatter in event.content.split(' '):
-            self.__channels[event.channel].append(chatter)
+            self.channels[event.channel].append(chatter)
 
     # notify a successful connection or a chatter joining
 
     def __on_join_handler(self, event):
         if event.author == self.__nickname:
             self.__notice('Successfully connected to {}'.format(event.channel))
-            self.__channels[event.channel] = []
+            self.channels[event.channel] = []
         else:
-            self.__channels[event.channel].append(event.author)
+            self.channels[event.channel].append(event.author)
 
     # notify a channel disconnection or a chatter leaving
     def __on_part_handler(self, event):
         # if trigger by the client
         if event.author == self.__nickname:
             try:
-                self.__channels.pop(event.channel)
+                self.channels.pop(event.channel)
                 self.__notice('Successfully disconnected from {}'.format(event.channel))
             except KeyError:
                 self.__warning('Channel {author} disconnected, '
@@ -202,7 +206,7 @@ class IRC:
         # if trigger by other chatter
         else:
             try:
-                self.__channels[event.channel].remove(event.author)
+                self.channels[event.channel].remove(event.author)
             except ValueError:
                 self.__warning('User {author} disconnected from {channel}, '
                                'but wasn\'t connected'.format(**event.__dict__))
@@ -254,19 +258,19 @@ class IRC:
 
     # leave a channel
     def channel_part(self, channel: str):
-        if channel in self.__channels and self.__wait_for_status():
+        if channel in self.channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
     # rejoin all known channels
     def channel_join_all(self):
-        channels = self.__channels
-        self.__channels = {}
+        channels = self.channels
+        self.channels = {}
         for channel in channels:
             self.channel_join(channel)
 
     # leave all connected channels
     def channel_part_all(self):
-        for channel in self.__channels:
+        for channel in self.channels:
             self.channel_part(channel)
 
     """
@@ -316,11 +320,10 @@ class IRC:
     def send_message(self, channel: str, message: str):
         if self.__wait_for_status():
             # if channel not connected, try to connect
-            if channel not in self.__channels:
-                print('channel join')
+            if channel not in self.channels:
                 self.channel_join(channel)
                 i = 10
-                while channel not in self.__channels:
+                while channel not in self.channels:
                     self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
                     i -= 1
                     time.sleep(1)
@@ -397,7 +400,9 @@ class IRC:
         tag_dict = {}
         # Appending key/value pair in a dict
         for tag in tag_list:
-            key, value = tag.split(separator_b)
+            key, value = tag.split(separator_b, 1)
+            # Stripping potentials escaped spaces
+            value = value.replace('\\s', ' ')
             tag_dict[key] = value
         return tag_dict
 
