@@ -29,6 +29,13 @@ class Event:
         \tchannel : {},
         \tcontent : {}\r\n""".format(self.raw, self.type, self.tags, self.author, self.channel, self.content))
 
+    def show(self):
+        print("> {author} - {channel} : {content}".format(**self.__dict__))
+
+    def emphasis(self):
+        content = self.content[7:-1]
+        print("> {author} - {channel} : \33[34m{}\33[0m".format(content, **self.__dict__))
+
 
 class CurrentEvent(Event):
 
