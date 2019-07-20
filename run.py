@@ -1,54 +1,63 @@
-from irc import IRC
-import time
-from os import path
 import json
-import sys
-from credentials import nickname, oauth
-import random
+import time
+from sys import path
+
 import requests
 
-client = IRC(nickname, oauth, log_settings=[0,0,0,0], throttle=100)
+from credentials import nickname, oauth
+from irc import IRC
+
+client = IRC(nickname, oauth, log_settings=[0, 1, 0, 0], throttle=100)
 
 how_many_hundred = 20
 start_at = 0
 
+
 def get_streams(hundred: int):
-    usernames = []
+    username_list = []
     pagination = ''
     headers = {"Client-ID": 'qab2o1rz2l780rdbn7myuk5iyg4wra'}
     while hundred > 0:
         r = requests.get("https://api.twitch.tv/helix/streams?first=100{}".format(pagination), headers=headers)
         for stuff in r.json()['data']:
-            usernames.append(stuff['user_name'].lower())
+            username_list.append(stuff['user_name'].lower())
         pagination = '&after={}'.format(r.json()['pagination']['cursor'])
         time.sleep(5)
         hundred -= 1
-    return usernames
+    return username_list
 
-def degager_vieux_stream(irc, liste):
-    for channels in irc.channels:
-        if channels not in liste:
+
+def pop_old_stream(irc, lst):
+    chn = irc.channels
+    for channels in chn:
+        if channels not in lst:
             irc.channel_part(channels)
 
-def mettre_nouveau_stream(irc, liste):
-    for channels in liste:
+
+def add_new_stream(irc, lst):
+    for channels in lst:
         if channels not in irc.channels:
             irc.channel_join(channels)
 
-def update_irc(irc, liste):
-    degager_vieux_stream(irc, liste)
-    mettre_nouveau_stream(irc, liste)
+
+def update_irc(irc, lst):
+    pop_old_stream(irc, lst)
+    add_new_stream(irc, lst)
 
 
-while True:
-    liste_stream = get_streams(start_at)
-    if start_at < how_many_hundred:
-        start_at += 1
-    update_irc(client, liste_stream)
-    print("=========================================")
-    print("Client {} connected channels: {}/{}".format(nickname, len(client.channels), start_at * 100))
-    print("=========================================")
+with open(path.join("samples", "log.txt"), 'r', encoding='utf-8') as file:
+    sample = file.read()
 
+i = 0
+for shit in sample.split('\n'):
 
+    print(json.dumps(client.parse(shit).__dict__, indent=2))
 
-
+# while True:
+#     stream_list = get_streams(start_at)
+#     update_irc(client, stream_list)
+#     print("=========================================")
+#     print("Client {} connected channels: {}/{}".format(nickname, len(client.channels), start_at * 100))
+#     print("=========================================")
+#     if start_at < how_many_hundred:
+#         start_at += 1
