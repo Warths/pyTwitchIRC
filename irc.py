@@ -3,6 +3,7 @@ import select
 import socket
 import threading
 import time
+import datetime
 
 
 from event import Event, CurrentEvent
@@ -477,23 +478,23 @@ class IRC:
     def __notice(self, text: str) -> None:
         if self.__log_settings[0]:
             print('\33[32m' + text + '\33[0m')
-            if self.__log:
-                print(text, file=self.__log_file)
+            self.__log_to_file(text)
 
     def __warning(self, text: str) -> None:
         if self.__log_settings[1]:
             print('\33[31m' + text + '\33[0m')
-            if self.__log:
-                print(text, file=self.__log_file)
+            self.__log_to_file(text)
 
     def __packet_received(self, text: str) -> None:
         if self.__log_settings[2]:
             print('\33[36m<' + text + '\33[0m')
-            if self.__log:
-                print(text, file=self.__log_file)
+            self.__log_to_file(text)
 
     def __packet_sent(self, text: str) -> None:
         if self.__log_settings[3]:
             print('\33[34m>' + text.strip("\n") + '\33[0m')
-            if self.__log:
-                print(text, file=self.__log_file)
+            self.__log_to_file(text)
+
+    def __log_to_file(self, text, type):
+        if self.__log_file:
+            print("[{}][{}]:{}".format(datetime.datetime.now(), type, text), file=open(self.__log_file, "a+"))
