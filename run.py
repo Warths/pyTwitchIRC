@@ -7,7 +7,7 @@ import requests
 from credentials import nickname, oauth
 from irc import IRC
 
-client = IRC(nickname, oauth, log_settings=[0, 1, 0, 0], throttle=100, log_file="log.txt")
+client = IRC(nickname, oauth, log_settings=(0, 1, 0, 0), throttle=100, log_file="log.txt")
 
 how_many_hundred = 6
 start_at = 0
@@ -60,7 +60,6 @@ while True:
         start_at += 1
     client.get_event()
 
-    print(json.dumps(client.parse(shit).__dict__, indent=2))
 
 # while True:
 #     time.sleep(.1)
