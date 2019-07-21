@@ -45,8 +45,10 @@ def update_irc(irc, lst):
     add_new_stream(irc, lst)
 
 
-with open(path.join("samples", "log.txt"), 'r', encoding='utf-8') as file:
-    sample = file.read()
+# with open("tmp.txt", 'r', encoding='utf-8') as file:
+#     sample = file.read()
+# for shit in sample.split('\n'):
+#     print(json.dumps(client.parse(shit).__dict__, indent=2))
 
 while True:
     stream_list = get_streams(start_at)
