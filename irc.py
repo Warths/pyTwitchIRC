@@ -286,6 +286,7 @@ class IRC:
         channels = self.channels
         self.channels = {}
         for channel in channels:
+            self.process_socket()
             self.channel_join(channel)
 
     # leave all connected channels
