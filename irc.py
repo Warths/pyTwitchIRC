@@ -12,7 +12,7 @@ from event import Event, CurrentEvent
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=[0, 0, 0, 0], throttle=20, log_file=None):
+                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None):
         """
 
         :param nickname: lowercase twitch username of the bot
