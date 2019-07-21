@@ -129,8 +129,6 @@ class IRC:
                 self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
             except OSError:
                 self.__reset_connection("OSError raised. Trying to reconnect.")
-            except ConnectionResetError:
-                self.__reset_connection("ConnectionResetError raised. trying to reconnect.")
 
     def __reset_connection(self, warn):
         # print the warning
