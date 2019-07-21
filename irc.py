@@ -12,7 +12,7 @@ from event import Event, CurrentEvent
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None):
+                 log_settings=[0, 0, 0, 0], throttle=20, log_file=None):
         """
 
         :param nickname: lowercase twitch username of the bot
@@ -40,6 +40,9 @@ class IRC:
         self.__event_buffer = []
         self.__received_event = []
         self.__status = 0
+
+        self.channels_to_leave = []
+        self.channels_to_join = []
 
         self.__capabilities_acknowledged = {
             "twitch.tv/tags": False,
@@ -98,8 +101,6 @@ class IRC:
             try:
                 self.__set_status(0)
                 self.__connect()
-
-                self.join_all()
                 while True:
                     if self.__is_timed_out():
                         self.__warning('Client didn\'t receive ping for too long')
@@ -109,12 +110,16 @@ class IRC:
                 self.__reset_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
                 self.__reset_connection("Timeout Error raised. Trying to reconnect.")
+            except socket.error:
+                self.__reset_connection("Error raised. Trying to reconnect.")
             except ConnectionResetError:
                 self.__reset_connection("ConnectionResetError raised. Trying to reconnect.")
             except BrokenPipeError:
                 self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
             except OSError:
                 self.__reset_connection("OSError raised. Trying to reconnect.")
+            except ConnectionResetError:
+                self.__reset_connection("ConnectionResetError raised. trying to reconnect.")
 
     def process_socket(self):
         self.__receive_data()
@@ -127,10 +132,17 @@ class IRC:
                 if self.__status >= 2:
                     self.__received_event.append(event)
             except Exception as e:
-                print(tmp, file=open("log.txt", "a"))
+                print(tmp, file=open("errors.txt", "a"))
                 print(e)
                 print(e.args)
                 self.__warning("appended an error to log.txt")
+        if self.__status == 2:
+            if len(self.channels_to_join) > 0:
+                self.channel_join(self.channels_to_join[0])
+                self.channels_to_join.pop(0)
+            if len(self.channels_to_leave) > 0:
+                self.channel_part(self.channels_to_leave[0])
+                self.channels_to_leave.pop(0)
 
     def __reset_connection(self, warn):
         # print the warning
@@ -143,9 +155,7 @@ class IRC:
         self.__set_status(0)
         # reconnection
         self.__connect()
-        self.join_all()
-
-        self.__wait_for_status(2)
+        self.list_all_channels_to_reconnect()
 
     def __connect(self):
         # setup the connection
@@ -234,8 +244,6 @@ class IRC:
     """
 
     def __open_socket(self) -> None:
-        if self.__socket:
-            raise Exception('Socket already exists')
         self.__socket = socket.socket()
 
     def __connect_socket(self) -> bool:
@@ -255,7 +263,7 @@ class IRC:
         if not ready[0]:
             return
         # get up to 1024 from the buffer and the socket then split the events
-        self.__buffer += self.__socket.recv(1024)
+        self.__buffer += self.__socket.recv(4096)
         events = self.__buffer.split(b'\r\n')
         self.__buffer = events.pop()
 
@@ -270,28 +278,26 @@ class IRC:
     """
 
     # send a channel connection request
-    def join(self, channel: str):
+    def channel_join(self, channel: str):
         if self.__wait_for_status():
             self.__send('JOIN #{}\r\n'.format(channel))
 
     # leave a channel
-    def part(self, channel: str):
+    def channel_part(self, channel: str):
         if channel in self.channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
     # rejoin all known channels
-    def join_all(self):
-        channels = self.channels
+    def list_all_channels_to_reconnect(self):
+        for channel in self.channels:
+            self.channels_to_join.append(channel)
         self.channels = {}
-        for channel in channels:
-            self.process_socket()
-            self.join(channel)
 
     # leave all connected channels
-    def part_all(self):
+    def list_all_channels_to_leave(self):
+        self.channels_to_join = []
         for channel in self.channels:
-            self.process_socket()
-            self.part(channel)
+            self.channels_to_leave.append(channel)
 
     """
     sending methods
@@ -342,7 +348,7 @@ class IRC:
         if self.__wait_for_status():
             # if channel not connected, try to connect
             if channel not in self.channels:
-                self.join(channel)
+                self.channel_join(channel)
                 i = 10
                 while channel not in self.channels:
                     self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
@@ -368,9 +374,6 @@ class IRC:
             while self.__status < target:
                 self.__warning('Client not ready, current status is {} expect {},'.format(self.__status, target) +
                                ' wait {}s until abort'.format(timeout))
-                if self.__status == 0:
-                    self.__connect()
-                    time.sleep(1)
                 if self.__status == 1 and target == 2:
                     for capabilities in self.__capabilities_acknowledged:
                         if not self.__capabilities_acknowledged[capabilities]:
@@ -498,8 +501,6 @@ class IRC:
             self.__log_to_file(text, "WARN")
 
     def __packet_received(self, text: str) -> None:
-        if "JOIN" not in text:
-            return
         if self.__log_settings[2]:
             print('\33[36m<' + text + '\33[0m')
             self.__log_to_file(text, "RCEV")

@@ -7,9 +7,9 @@ import requests
 from credentials import nickname, oauth
 from irc import IRC
 
-client = IRC(nickname, oauth, log_settings=(0, 1, 0, 0), throttle=100, log_file="log.txt")
+client = IRC(nickname, oauth, log_settings=[1, 1, 1, 1], throttle=100)
 
-how_many_hundred = 6
+how_many_hundred = 20
 start_at = 0
 
 
@@ -31,13 +31,14 @@ def pop_old_stream(irc, lst):
     chn = irc.channels
     for channels in chn:
         if channels not in lst:
-            irc.part(channels)
+            irc.channel_part(channels)
 
 
 def add_new_stream(irc, lst):
     for channels in lst:
         if channels not in irc.channels:
-            irc.join(channels)
+            time.sleep(0.2)
+            irc.channel_join(channels)
 
 
 def update_irc(irc, lst):
@@ -59,7 +60,6 @@ while True:
     if start_at < how_many_hundred:
         start_at += 1
     client.get_event()
-
 
 # while True:
 #     time.sleep(.1)
