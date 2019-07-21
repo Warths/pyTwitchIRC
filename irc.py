@@ -399,6 +399,8 @@ class IRC:
                 # undocumented tag, not processed #twitch
                 if key == 'flags':
                     pass
+                elif key == 'msg-param-sub-plan-name':
+                    tags[key] = tags[key].replace('\\s', ' ')
                 # if the tag contain ':' it's a dict containing lists
                 elif ':' in tags[key] and '://' not in tags[key]:
                     tags[key] = self.__parse_tags_dict(tags[key], '/', ':')
