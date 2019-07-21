@@ -9,7 +9,7 @@ from irc import IRC
 
 client = IRC(nickname, oauth, log_settings=[0, 1, 0, 0], throttle=100, log_file="log.txt")
 
-how_many_hundred = 20
+how_many_hundred = 6
 start_at = 0
 
 
