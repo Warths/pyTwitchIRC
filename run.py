@@ -1,6 +1,4 @@
-import json
 import time
-from sys import path
 
 import requests
 
