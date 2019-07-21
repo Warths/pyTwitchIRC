@@ -104,21 +104,7 @@ class IRC:
                     if self.__is_timed_out():
                         self.__warning('Client didn\'t receive ping for too long')
                         raise socket.timeout
-                    self.__receive_data()
-                    while len(self.__event_buffer) > 0:
-                        tmp = self.__event_buffer.pop(0)
-                        try:
-                            event = self.parse(tmp)
-                            self.__event.update(event)
-                            self.__check_callback()
-                            if self.__status >= 2:
-                                self.__received_event.append(event)
-                        except Exception as e:
-                            print(tmp, file=open("log.txt", "a"))
-                            print(e)
-                            print(e.args)
-                            self.__warning("appended an error to log.txt")
-
+                    self.process_socket()
             except socket.gaierror:
                 self.__reset_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
@@ -129,6 +115,22 @@ class IRC:
                 self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
             except OSError:
                 self.__reset_connection("OSError raised. Trying to reconnect.")
+
+    def process_socket(self):
+        self.__receive_data()
+        while len(self.__event_buffer) > 0:
+            tmp = self.__event_buffer.pop(0)
+            try:
+                event = self.parse(tmp)
+                self.__event.update(event)
+                self.__check_callback()
+                if self.__status >= 2:
+                    self.__received_event.append(event)
+            except Exception as e:
+                print(tmp, file=open("log.txt", "a"))
+                print(e)
+                print(e.args)
+                self.__warning("appended an error to log.txt")
 
     def __reset_connection(self, warn):
         # print the warning
@@ -282,11 +284,13 @@ class IRC:
         channels = self.channels
         self.channels = {}
         for channel in channels:
+            self.process_socket()
             self.channel_join(channel)
 
     # leave all connected channels
     def channel_part_all(self):
         for channel in self.channels:
+            self.process_socket()
             self.channel_part(channel)
 
     """
@@ -308,8 +312,9 @@ class IRC:
                                                                                         self.__throttle))
                 time.sleep(wait)
 
-    def __send(self, packet, obfuscate_after=None):
-        self.__anti_throttle()
+    def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
+        if not ignore_throttle:
+            self.__anti_throttle()
         self.__socket.send(packet.encode('UTF-8'))
         self.__event_sent_date.append(time.time())
         # creating '**..' string with the length required
@@ -322,15 +327,15 @@ class IRC:
     # send a packet and log it[, obfuscate after a certain index]
     def __send_pong(self) -> None:
         self.__last_ping = time.time()
-        self.__send('PONG :tmi.twitch.tv\r\n')
+        self.__send('PONG :tmi.twitch.tv\r\n', ignore_throttle=1)
         if not self.__log_settings[2]:
             self.__notice('Ping Received. Pong sent.')
 
     def __send_nickname(self):
-        self.__send('NICK {}\r\n'.format(self.__nickname))
+        self.__send('NICK {}\r\n'.format(self.__nickname), ignore_throttle=1)
 
     def __send_pass(self):
-        self.__send('PASS {}\r\n'.format(self.__oauth), 11)
+        self.__send('PASS {}\r\n'.format(self.__oauth), 11, ignore_throttle=1)
 
     # send a message to a channel and prevent sending to disconnected channels
     def send_message(self, channel: str, message: str):
@@ -351,7 +356,7 @@ class IRC:
 
     # send a IRC capability request
     def __request_capabilities(self, arg: str):
-        self.__send('CAP REQ :{}\r\n'.format(arg))
+        self.__send('CAP REQ :{}\r\n'.format(arg), ignore_throttle=1)
 
     # check IRC time out state
     def __is_timed_out(self):
@@ -379,12 +384,16 @@ class IRC:
 
     # wrapper for parsing methods
     def parse(self, event):
-        tags = self.__parse_tags(event)
-        event_type = self.__parse_type(event)
-        channel = self.__parse_channel(event, event_type)
-        author = self.__parse_author(event)
-        content = self.__parse_content(event, channel)
-        return Event(event, type=event_type, tags=tags, channel=channel, author=author, content=content)
+        try:
+            tags = self.__parse_tags(event)
+            event_type = self.__parse_type(event)
+            channel = self.__parse_channel(event, event_type)
+            author = self.__parse_author(event)
+            content = self.__parse_content(event, channel)
+            return Event(event, type=event_type, tags=tags, channel=channel, author=author, content=content)
+        except Exception as e:
+            print(e.args)
+            print(event)
 
     def __parse_tags(self, event):
         # Checking if there is tags
@@ -420,7 +429,7 @@ class IRC:
         # Appending key/value pair in a dict
         for tag in tag_list:
             key, value = tag.split(separator_b, 1)
-            # Stripping potentials escaped spaces
+            # potentials escaped spaces
             value = value.replace('\\s', ' ')
             tag_dict[key] = value
         return tag_dict
@@ -486,6 +495,8 @@ class IRC:
             self.__log_to_file(text, "WARN")
 
     def __packet_received(self, text: str) -> None:
+        if "JOIN" not in text:
+            return
         if self.__log_settings[2]:
             print('\33[36m<' + text + '\33[0m')
             self.__log_to_file(text, "RCEV")
