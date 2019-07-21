@@ -1,16 +1,13 @@
-import json
 import time
-from sys import path
-
 import requests
 
 from credentials import nickname, oauth
 from irc import IRC
 
-client = IRC(nickname, oauth, log_settings=(1, 1, 1, 1), throttle=100)
+client = IRC(nickname, oauth, log_settings=(1, 1, 0, 0), throttle=100)
 
 how_many_hundred = 20
-start_at = 0
+start_at = 20
 
 
 def get_streams(hundred: int):
@@ -28,15 +25,14 @@ def get_streams(hundred: int):
 
 
 def pop_old_stream(irc, lst):
-    chn = irc.channels
-    for channels in chn:
+    for channels in list(irc.channels):
         if channels not in lst:
             irc.channel_part(channels)
 
 
 def add_new_stream(irc, lst):
     for channels in lst:
-        if channels not in irc.channels:
+        if channels not in list(irc.channels):
             time.sleep(0.2)
             irc.channel_join(channels)
 
