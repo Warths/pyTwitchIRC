@@ -99,7 +99,7 @@ class IRC:
                 self.__set_status(0)
                 self.__connect()
 
-                self.channel_join_all()
+                self.join_all()
                 while True:
                     if self.__is_timed_out():
                         self.__warning('Client didn\'t receive ping for too long')
@@ -143,7 +143,7 @@ class IRC:
         self.__set_status(0)
         # reconnection
         self.__connect()
-        self.channel_join_all()
+        self.join_all()
 
         self.__wait_for_status(2)
 
@@ -270,28 +270,28 @@ class IRC:
     """
 
     # send a channel connection request
-    def channel_join(self, channel: str):
+    def join(self, channel: str):
         if self.__wait_for_status():
             self.__send('JOIN #{}\r\n'.format(channel))
 
     # leave a channel
-    def channel_part(self, channel: str):
+    def part(self, channel: str):
         if channel in self.channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
     # rejoin all known channels
-    def channel_join_all(self):
+    def join_all(self):
         channels = self.channels
         self.channels = {}
         for channel in channels:
             self.process_socket()
-            self.channel_join(channel)
+            self.join(channel)
 
     # leave all connected channels
-    def channel_part_all(self):
+    def part_all(self):
         for channel in self.channels:
             self.process_socket()
-            self.channel_part(channel)
+            self.part(channel)
 
     """
     sending methods
@@ -342,7 +342,7 @@ class IRC:
         if self.__wait_for_status():
             # if channel not connected, try to connect
             if channel not in self.channels:
-                self.channel_join(channel)
+                self.join(channel)
                 i = 10
                 while channel not in self.channels:
                     self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
