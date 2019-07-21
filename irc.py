@@ -118,8 +118,6 @@ class IRC:
                 self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
             except OSError:
                 self.__reset_connection("OSError raised. Trying to reconnect.")
-            except ConnectionResetError:
-                self.__reset_connection("ConnectionResetError raised. trying to reconnect.")
 
     def process_socket(self):
         self.__receive_data()
