@@ -363,6 +363,12 @@ class IRC:
             while self.__status < target:
                 self.__warning('Client not ready, current status is {} expect {},'.format(self.__status, target) +
                                ' wait {}s until abort'.format(timeout))
+                if self.__status == 0 and target == 1:
+                    self.__connect_socket()
+                    if target == 2:
+                        for capabilities in self.__capabilities_acknowledged:
+                            if not self.__capabilities_acknowledged[capabilities]:
+                                self.__request_capabilities(capabilities)
                 if self.__status == 1 and target == 2:
                     for capabilities in self.__capabilities_acknowledged:
                         if not self.__capabilities_acknowledged[capabilities]:
