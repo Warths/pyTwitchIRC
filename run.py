@@ -48,8 +48,15 @@ def update_irc(irc, lst):
 with open(path.join("samples", "log.txt"), 'r', encoding='utf-8') as file:
     sample = file.read()
 
-i = 0
-for shit in sample.split('\n'):
+while True:
+    stream_list = get_streams(start_at)
+    update_irc(client, stream_list)
+    print("=========================================")
+    print("Client {} connected channels: {}/{}".format(nickname, len(client.channels), start_at * 100))
+    print("=========================================")
+    if start_at < how_many_hundred:
+        start_at += 1
+    client.get_event()
 
     print(json.dumps(client.parse(shit).__dict__, indent=2))
 
