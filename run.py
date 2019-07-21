@@ -61,10 +61,22 @@ while True:
     print(json.dumps(client.parse(shit).__dict__, indent=2))
 
 # while True:
-#     stream_list = get_streams(start_at)
-#     update_irc(client, stream_list)
-#     print("=========================================")
-#     print("Client {} connected channels: {}/{}".format(nickname, len(client.channels), start_at * 100))
-#     print("=========================================")
-#     if start_at < how_many_hundred:
-#         start_at += 1
+#     time.sleep(.1)
+#     events = client.get_event()
+#     while len(events) > 0:
+#         e = events[0]
+#         if e.type == 'PRIVMSG':
+#             if e.content[0] == "!":
+#                 e.show()
+#                 if e.content.split()[0] == '!help':
+#                     client.send_message(e.channel, "test")
+#                     print('command test received')
+#             elif e.content[0] == '' and e.content[-1] == '':
+#                 print(e.tags['mod'])
+#                 # if e.tags['mod'] == '0':
+#                 #     client.send_message(e.channel, '/delete {}'.format(e.tags['id']))
+#                 # else:
+#                 e.emphasis()
+#             else:
+#                 e.show()
+#         events.pop(0)
