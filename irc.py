@@ -11,7 +11,7 @@ from event import Event, CurrentEvent
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=[1, 1, 1, 1], throttle=20, log=False):
+                 log_settings=[0, 0, 0, 0], throttle=20, log_file=None):
         """
 
         :param nickname: lowercase twitch username of the bot
@@ -27,10 +27,8 @@ class IRC:
         self.__port = port
         self.__log_settings = log_settings
         self.__throttle = throttle
-        self.__log = log
+        self.__log_file = log_file
 
-        if self.__log:
-            self.__log_file = open("log.txt", "a+")
         self.__socket = None
         self.__buffer = b''
         self.__last_ping = time.time()
