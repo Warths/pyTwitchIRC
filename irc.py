@@ -41,8 +41,8 @@ class IRC:
         self.__received_event = []
         self.__status = 0
 
-        self.channels_to_leave = []
-        self.channels_to_join = []
+        self.__channels_to_leave = []
+        self.__channels_to_join = []
 
         self.__capabilities_acknowledged = {
             "twitch.tv/tags": False,
@@ -101,11 +101,13 @@ class IRC:
             try:
                 self.__set_status(0)
                 self.__connect()
+
                 while True:
                     if self.__is_timed_out():
                         self.__warning('Client didn\'t receive ping for too long')
                         raise socket.timeout
                     self.process_socket()
+
             except socket.gaierror:
                 self.__reset_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
@@ -123,34 +125,40 @@ class IRC:
         self.__receive_data()
         while len(self.__event_buffer) > 0:
             tmp = self.__event_buffer.pop(0)
+
             try:
                 event = self.parse(tmp)
                 self.__event.update(event)
                 self.__check_callback()
                 if self.__status >= 2:
                     self.__received_event.append(event)
+
             except Exception as e:
                 print(tmp, file=open("errors.txt", "a"))
                 print(e)
                 print(e.args)
                 self.__warning("appended an error to log.txt")
+
         if self.__status == 2:
-            if len(self.channels_to_join) > 0:
-                self.channel_join(self.channels_to_join[0])
-                self.channels_to_join.pop(0)
-            if len(self.channels_to_leave) > 0:
-                self.channel_part(self.channels_to_leave[0])
-                self.channels_to_leave.pop(0)
+            if len(self.__channels_to_join) > 0:
+                self.channel_join(self.__channels_to_join[0])
+                self.__channels_to_join.pop(0)
+
+            if len(self.__channels_to_leave) > 0:
+                self.channel_part(self.__channels_to_leave[0])
+                self.__channels_to_leave.pop(0)
 
     def __reset_connection(self, warn):
         # print the warning
         self.__warning(warn)
+
         # reset status variables
         self.__last_ping = time.time()
         self.__socket = None
         for key in self.__capabilities_acknowledged:
             self.__capabilities_acknowledged[key] = False
         self.__set_status(0)
+
         # reconnection
         self.__connect()
         self.list_all_channels_to_reconnect()
@@ -196,10 +204,12 @@ class IRC:
     def __on_cap_handler(self, event):
         try:
             self.__capabilities_acknowledged[event.content] = True
+
             if self.__capabilities_acknowledged['twitch.tv/membership'] and \
                     self.__capabilities_acknowledged['twitch.tv/tags'] and \
                     self.__capabilities_acknowledged['twitch.tv/commands']:
                 self.__set_status(2)
+
             if not self.__log_settings[3]:
                 self.__notice('Capability {} got acknowledged'.format(event.content))
 
@@ -250,6 +260,7 @@ class IRC:
             self.__socket.setblocking(0)
             self.__notice('Connected to {0[0]}:{0[1]}'.format(self.__socket.getpeername()))
             return True
+
         except socket.gaierror:
             self.__warning('Unable to connect.')
             return False
@@ -260,12 +271,13 @@ class IRC:
         ready = select.select([self.__socket], [], [], 0.1)
         if not ready[0]:
             return
+
         # get up to 1024 from the buffer and the socket then split the events
         self.__buffer += self.__socket.recv(4096)
         events = self.__buffer.split(b'\r\n')
         self.__buffer = events.pop()
 
-        # print all the events
+        # append all the events to the event buffer
         for event in events:
             decoded = event.decode("utf-8")
             self.__packet_received(decoded)
@@ -288,14 +300,14 @@ class IRC:
     # rejoin all known channels
     def list_all_channels_to_reconnect(self):
         for channel in self.channels:
-            self.channels_to_join.append(channel)
+            self.__channels_to_join.append(channel)
         self.channels = {}
 
     # leave all connected channels
     def list_all_channels_to_leave(self):
-        self.channels_to_join = []
+        self.__channels_to_join = []
         for channel in self.channels:
-            self.channels_to_leave.append(channel)
+            self.__channels_to_leave.append(channel)
 
     """
     sending methods
@@ -321,6 +333,7 @@ class IRC:
             self.__anti_throttle()
         self.__socket.send(packet.encode('UTF-8'))
         self.__event_sent_date.append(time.time())
+
         # creating '**..' string with the length required
         if obfuscate_after:
             packet_hidden = '*' * (len(packet) - obfuscate_after)
@@ -330,8 +343,11 @@ class IRC:
 
     # send a packet and log it[, obfuscate after a certain index]
     def __send_pong(self) -> None:
+        # update last ping time
         self.__last_ping = time.time()
+        # send new ping
         self.__send('PONG :tmi.twitch.tv\r\n', ignore_throttle=1)
+        # log
         if not self.__log_settings[2]:
             self.__notice('Ping Received. Pong sent.')
 
