@@ -132,13 +132,19 @@ class IRC:
                 self.__reset_connection("ConnectionResetError raised. trying to reconnect.")
 
     def __reset_connection(self, warn):
+        # print the warning
         self.__warning(warn)
+        # reset status variables
         self.__last_ping = time.time()
         self.__socket = None
         for key in self.__capabilities_acknowledged:
             self.__capabilities_acknowledged[key] = False
         self.__set_status(0)
-        time.sleep(5)
+        # reconnection
+        self.__connect()
+        self.channel_join_all()
+
+        self.__wait_for_status(2)
 
     def __connect(self):
         # setup the connection
