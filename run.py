@@ -7,7 +7,7 @@ import requests
 from credentials import nickname, oauth
 from irc import IRC
 
-client = IRC(nickname, oauth, log_settings=[1, 1, 1, 1], throttle=100)
+client = IRC(nickname, oauth, log_settings=(1, 1, 1, 1), throttle=100)
 
 how_many_hundred = 20
 start_at = 0
