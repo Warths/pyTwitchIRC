@@ -89,7 +89,7 @@ class IRC:
             },
             {
                 'type': 'RECONNECT',
-                'method': self.__reset_connection,
+                'method': self.__init_connection,
                 'args': []
             }
         ]
@@ -104,8 +104,7 @@ class IRC:
     def __run(self):
         while True:
             try:
-                self.__set_status(-1)
-                self.__connect()
+                self.__init_connection()
 
                 while True:
                     # check connection status
@@ -116,17 +115,17 @@ class IRC:
                     self.process_socket()
 
             except socket.gaierror:
-                self.__reset_connection("Gaierror raised. Trying to reconnect.")
+                self.__init_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
-                self.__reset_connection("Timeout Error raised. Trying to reconnect.")
+                self.__init_connection("Timeout Error raised. Trying to reconnect.")
             except socket.error:
-                self.__reset_connection("Error raised. Trying to reconnect.")
+                self.__init_connection("Error raised. Trying to reconnect.")
             except ConnectionResetError:
-                self.__reset_connection("ConnectionResetError raised. Trying to reconnect.")
+                self.__init_connection("ConnectionResetError raised. Trying to reconnect.")
             except BrokenPipeError:
-                self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
+                self.__init_connection("BrokenPipeError raised. Trying to reconnect.")
             except OSError:
-                self.__reset_connection("OSError raised. Trying to reconnect.")
+                self.__init_connection("OSError raised. Trying to reconnect.")
 
     def process_socket(self):
         self.__receive_data()
@@ -158,33 +157,22 @@ class IRC:
             """
             # connect scheduled channels
             if len(self.__to_join) > 0:
-                i = 0
-                while len(self.__to_join) > 0 and i < self.__how_many:
-                    # store the current channel and the try counter
-                    channel = list(self.__to_join[0].keys())[0]
-                    try_counter = self.__to_join[0][channel]
-                    # if the channel is not connected and the max try limit not reached
-                    if channel not in self.channels and try_counter < self.__max_try:
-                        self.__request_join(channel)
-                        try_counter += 1
-                        self.__to_join.append((channel, try_counter))
-                    # if the max try limit is reached
-                    elif try_counter >= self.__max_try:
-                        self.__warning('Unable to join {}, abort'.format(channel))
-                    i += 1
-            # disconnect scheduled channels
-            if len(self.__to_part) > 0:
-                i = 0
-                while len(self.__to_part) > 0 and i < self.__how_many:
-                    self.__request_part(self.__to_part[0])
-                    self.__to_part.pop(0)
-                    i += 1
+                channel = self.__to_join.pop(0)
+                self.__request_join(channel[0])
+                channel[1] += 1
+                if channel[1] < self.__max_try:
+                    self.__to_join.append(channel)
 
-    def __reset_connection(self, warn):
+
+
+
+    def __init_connection(self, warn=None):
         # emptying the buffer
         self.__buffer = b''
-        # print the warning
-        self.__warning(warn)
+
+        # print the warning if needed
+        if warn:
+            self.__warning(warn)
 
         # reset status variables
         self.__last_ping = time.time()
