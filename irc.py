@@ -227,7 +227,7 @@ class IRC:
                 self.__notice('Capability {} got acknowledged'.format(event.content))
 
         except KeyError:
-            self.__warning("Unsupported Cap Ack received : {}".format(event.content))
+            self.__warning('Unsupported Cap Ack received : {}'.format(event.content))
 
     # fetch chatter names
     def __on_353_handler(self, event) -> None:
