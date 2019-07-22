@@ -262,8 +262,11 @@ class IRC:
         if event.author == self.__nickname:
             self.__notice('Successfully connected to {}'.format(event.channel))
             self.channels[event.channel] = []
-            if self.__to_join[event.channel]:
-                self.__to_join.pop(event.channel)
+            for i in range(0, len(self.__to_join)):
+                if self.__to_join[i][0] == event.channel:
+                    self.__to_join.pop(i)
+                    break
+            print(self.__to_join)
         # if the author is a chatter
         else:
             self.channels[event.channel].append(event.author)
