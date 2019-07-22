@@ -37,13 +37,15 @@ class IRC:
 
         self.__event = CurrentEvent()
         self.__event_sent_date = []
-        self.channels = {}
         self.__event_buffer = []
         self.__received_event = []
-        self.__status = 0
+        self.__status = -1
 
-        self.__channels_to_leave = []
+        self.channels = {}
+        self.__channels_to_part = []
         self.__channels_to_join = []
+        self.__channels_join_scheduled = []
+        self.__channels_part_scheduled = []
 
         self.__capabilities_acknowledged = {
             "twitch.tv/tags": False,
