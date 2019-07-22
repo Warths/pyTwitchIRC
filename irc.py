@@ -102,13 +102,15 @@ class IRC:
     def __run(self):
         while True:
             try:
-                self.__set_status(0)
+                self.__set_status(-1)
                 self.__connect()
 
                 while True:
+                    # check connection status
                     if self.__is_timed_out():
                         self.__warning('Client didn\'t receive ping for too long')
                         raise socket.timeout
+
                     self.process_socket()
 
             except socket.gaierror:
@@ -142,7 +144,8 @@ class IRC:
                 print(e.args)
                 self.__warning("appended an error to error.txt")
 
-        if self.__status == 2:
+        if self.__status == 3:
+            """
             if len(self.__channels_to_join) > 0:
                 self.channel_join(self.__channels_to_join[0])
                 self.__channels_to_join.pop(0)
@@ -162,7 +165,7 @@ class IRC:
         self.__socket = None
         for key in self.__capabilities_acknowledged:
             self.__capabilities_acknowledged[key] = False
-        self.__set_status(0)
+        self.__set_status(-1)
 
         # reconnection
         self.__connect()
@@ -174,6 +177,7 @@ class IRC:
         self.__connect_socket()
         self.__send_pass()
         self.__send_nickname()
+        self.__set_status(2)
 
         # request all the IRC capabilities
         self.__request_capabilities("twitch.tv/commands")
@@ -186,14 +190,18 @@ class IRC:
                 handlers['method'](*handlers['args'])
 
     def __set_status(self, status):
-        if status == 0 and self.__status == 2:
-            self.__warning('STATUS : 0 - Socket died.')
+        if status == -1:
+            self.__warning('STATUS : -1 - No socket')
+        elif status == -1 and self.__status == 3:
+            self.__warning('STATUS : -1 - Socket died')
         elif status == 0:
             self.__notice('STATUS : 0 - Socket opened')
         elif status == 1:
             self.__notice('STATUS : 1 - Socket connected')
         elif status == 2:
-            self.__notice('STATUS : 2 - Socket ready, buffering messages.')
+            self.__notice('STATUS : 2 - Socket authenticated')
+        elif status == 3:
+            self.__notice('STATUS : 3 - Socket ready, buffering messages')
         self.__status = status
 
     # get all received event and clear event buffer
@@ -213,7 +221,7 @@ class IRC:
             if self.__capabilities_acknowledged['twitch.tv/membership'] and \
                     self.__capabilities_acknowledged['twitch.tv/tags'] and \
                     self.__capabilities_acknowledged['twitch.tv/commands']:
-                self.__set_status(2)
+                self.__set_status(3)
 
             if not self.__log_settings[3]:
                 self.__notice('Capability {} got acknowledged'.format(event.content))
@@ -258,12 +266,14 @@ class IRC:
 
     def __open_socket(self) -> None:
         self.__socket = socket.socket()
+        self.__set_status(0)
 
     def __connect_socket(self) -> bool:
         try:
             self.__socket.connect((self.__host, self.__port))
             self.__socket.setblocking(0)
             self.__notice('Connected to {0[0]}:{0[1]}'.format(self.__socket.getpeername()))
+            self.__set_status(1)
             return True
 
         except socket.gaierror:
@@ -388,13 +398,13 @@ class IRC:
     def __is_timed_out(self):
         return time.time() - self.__last_ping > 300
 
-    def __wait_for_status(self, target=2, timeout=10) -> bool:
+    def __wait_for_status(self, target=3, timeout=10) -> bool:
         # if client not ready wait until ready
         if self.__status < target:
             while self.__status < target:
                 self.__warning('Client not ready, current status is {} expect {},'.format(self.__status, target) +
                                ' wait {}s until abort'.format(timeout))
-                if self.__status == 1 and target == 2:
+                if self.__status == 2 and target == 3:
                     for capabilities in self.__capabilities_acknowledged:
                         if not self.__capabilities_acknowledged[capabilities]:
                             self.__request_capabilities(capabilities)
