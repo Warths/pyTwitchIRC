@@ -11,14 +11,15 @@ from event import Event, CurrentEvent
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None):
+                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None, max_try=5):
         """
 
         :param nickname: lowercase twitch username of the bot
         :param oauth: chat authentication key. Can be found on twitchapps.com/tmi
         :param host: twitch server to connect with
         :param port: twitch server port to connect with
-        :param log_settings: [notice, warning, send, received] set the logging fashion
+        :param log_settings: [notice, warning, received, send] set the logging fashion
+        :param max_try: maximum new connection per run loop
         """
 
         self.__nickname = nickname.lower()
@@ -28,6 +29,7 @@ class IRC:
         self.__log_settings = log_settings
         self.__throttle = throttle
         self.__log_file = log_file
+        self.__max_try = max_try
 
         self.__socket = None
         self.__buffer = b''
