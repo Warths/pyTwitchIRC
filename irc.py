@@ -11,7 +11,7 @@ from event import Event, CurrentEvent
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None, max_try=5):
+                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None, how_many=5, max_try=1):
         """
 
         :param nickname: lowercase twitch username of the bot
@@ -19,7 +19,8 @@ class IRC:
         :param host: twitch server to connect with
         :param port: twitch server port to connect with
         :param log_settings: [notice, warning, received, send] set the logging fashion
-        :param max_try: maximum new connection per run loop
+        :param how_many: maximum new connection per run loop
+        :param max_try: maximum try before abort joining a channel
         """
 
         self.__nickname = nickname.lower()
@@ -29,6 +30,7 @@ class IRC:
         self.__log_settings = log_settings
         self.__throttle = throttle
         self.__log_file = log_file
+        self.__how_many = how_many
         self.__max_try = max_try
 
         self.__socket = None
@@ -44,8 +46,8 @@ class IRC:
         self.channels = {}
         self.__channels_to_part = []
         self.__channels_to_join = []
-        self.__channels_join_scheduled = []
-        self.__channels_part_scheduled = []
+        self.__to_join = []
+        self.__to_part = []
 
         self.__capabilities_acknowledged = {
             "twitch.tv/tags": False,
@@ -155,18 +157,27 @@ class IRC:
                 self.__channels_to_part.pop(0)
             """
             # connect scheduled channels
-            if len(self.__channels_join_scheduled) > 0:
+            if len(self.__to_join) > 0:
                 i = 0
-                while len(self.__channels_join_scheduled) > 0 and i < self.__max_try:
-                    self.__scheduled_join(self.__channels_join_scheduled[0])
-                    self.__channels_join_scheduled.pop(0)
+                while len(self.__to_join) > 0 and i < self.__how_many:
+                    # store the current channel and the try counter
+                    channel = list(self.__to_join[0].keys())[0]
+                    try_counter = self.__to_join[0][channel]
+                    # if the channel is not connected and the max try limit not reached
+                    if channel not in self.channels and try_counter < self.__max_try:
+                        self.__request_join(channel)
+                        try_counter += 1
+                        self.__to_join.append((channel, try_counter))
+                    # if the max try limit is reached
+                    elif try_counter >= self.__max_try:
+                        self.__warning('Unable to join {}, abort'.format(channel))
                     i += 1
             # disconnect scheduled channels
-            if len(self.__channels_part_scheduled) > 0:
+            if len(self.__to_part) > 0:
                 i = 0
-                while len(self.__channels_part_scheduled) > 0 and i < self.__max_try:
-                    self.__scheduled_part(self.__channels_part_scheduled[0])
-                    self.__channels_part_scheduled.pop(0)
+                while len(self.__to_part) > 0 and i < self.__how_many:
+                    self.__request_part(self.__to_part[0])
+                    self.__to_part.pop(0)
                     i += 1
 
     def __reset_connection(self, warn):
@@ -251,9 +262,13 @@ class IRC:
 
     # notify a successful connection or a chatter joining
     def __on_join_handler(self, event):
+        # if the author is the client
         if event.author == self.__nickname:
             self.__notice('Successfully connected to {}'.format(event.channel))
             self.channels[event.channel] = []
+            if self.__to_join[event.channel]:
+                self.__to_join.pop(event.channel)
+        # if the author is a chatter
         else:
             self.channels[event.channel].append(event.author)
 
@@ -266,14 +281,14 @@ class IRC:
                 self.__notice('Successfully disconnected from {}'.format(event.channel))
             except KeyError:
                 self.__notice('Channel {author} disconnected, '
-                               'but wasn\'t connected'.format(**event.__dict__))
+                              'but wasn\'t connected'.format(**event.__dict__))
         # if trigger by other chatter
         else:
             try:
                 self.channels[event.channel].remove(event.author)
             except ValueError:
                 self.__notice('User {author} disconnected from {channel}, '
-                               'but wasn\'t connected'.format(**event.__dict__))
+                              'but wasn\'t connected'.format(**event.__dict__))
 
     """
     socket
@@ -318,12 +333,12 @@ class IRC:
     """
 
     # send a channel connection request
-    def __scheduled_join(self, channel: str):
+    def __request_join(self, channel: str):
         if self.__wait_for_status():
             self.__send('JOIN #{}\r\n'.format(channel))
 
     # send a channel disconnection request
-    def __scheduled_part(self, channel: str):
+    def __request_part(self, channel: str):
         if channel in self.channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
@@ -341,11 +356,11 @@ class IRC:
 
     # request channel join
     def join(self, channel: str):
-        self.__channels_join_scheduled.append(channel)
+        self.__to_join.append({channel: 0})
 
     # request channel join
     def part(self, channel: str):
-        self.__channels_part_scheduled.append(channel)
+        self.__to_part.append({channel: 0})
 
     """
     sending methods
