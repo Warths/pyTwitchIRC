@@ -149,6 +149,8 @@ class IRC:
                 self.__channels_to_leave.pop(0)
 
     def __reset_connection(self, warn):
+        # emptying the buffer
+        self.__buffer = b''
         # print the warning
         self.__warning(warn)
 
