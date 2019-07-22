@@ -157,14 +157,22 @@ class IRC:
             """
             # connect scheduled channels
             if len(self.__to_join) > 0:
-                channel = self.__to_join.pop(0)
-                self.__request_join(channel[0])
-                channel[1] += 1
-                if channel[1] < self.__max_try:
-                    self.__to_join.append(channel)
-
-
-
+                item = self.__to_join.pop(0)
+                channel = item[0]
+                counter = item[1]
+                self.__request_join(channel)
+                counter += 1
+                if counter < self.__max_try:
+                    self.__to_join.append((channel, counter))
+            # connect scheduled channels
+            if len(self.__to_part) > 0:
+                item = self.__to_part.pop(0)
+                channel = item[0]
+                counter = item[1]
+                self.__request_join(channel)
+                counter += 1
+                if counter < self.__max_try:
+                    self.__to_part.append((channel, counter))
 
     def __init_connection(self, warn=None):
         # emptying the buffer
@@ -204,7 +212,7 @@ class IRC:
                 handlers['method'](*handlers['args'])
 
     def __set_status(self, status):
-        if status == -1:
+        if status == -1 and self.__status != -1:
             self.__warning('STATUS : -1 - No socket')
         elif status == -1 and self.__status == 3:
             self.__warning('STATUS : -1 - Socket died')
@@ -344,11 +352,11 @@ class IRC:
 
     # request channel join
     def join(self, channel: str):
-        self.__to_join.append({channel: 0})
+        self.__to_join.append((channel, 0))
 
     # request channel join
     def part(self, channel: str):
-        self.__to_part.append({channel: 0})
+        self.__to_part.append((channel, 0))
 
     """
     sending methods
