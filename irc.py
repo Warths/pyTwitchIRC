@@ -331,16 +331,18 @@ class IRC:
                 time.sleep(wait)
 
     def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
+        # verify throttling status
         if not ignore_throttle:
             self.__anti_throttle()
-        self.__socket.send(packet.encode('UTF-8'))
-        self.__event_sent_date.append(time.time())
-
+        # verify connection status
+        if self.__wait_for_status():
+            self.__socket.send(packet.encode('UTF-8'))
+            self.__event_sent_date.append(time.time())
         # creating '**..' string with the length required
         if obfuscate_after:
             packet_hidden = '*' * (len(packet) - obfuscate_after)
             packet = packet[0:obfuscate_after] + packet_hidden
-
+        # print to log
         self.__packet_sent(packet)
 
     # send a packet and log it[, obfuscate after a certain index]
