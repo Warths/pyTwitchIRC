@@ -11,7 +11,7 @@ from event import Event, CurrentEvent
 class IRC:
 
     def __init__(self, nickname: str, oauth: str, host='irc.chat.twitch.tv', port=6667,
-                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None, how_many=5, max_try=1):
+                 log_settings=(0, 0, 0, 0), throttle=20, log_file=None, how_many=5, max_try=5):
         """
 
         :param nickname: lowercase twitch username of the bot
@@ -169,7 +169,7 @@ class IRC:
                 item = self.__to_part.pop(0)
                 channel = item[0]
                 counter = item[1]
-                self.__request_join(channel)
+                self.__request_part(channel)
                 counter += 1
                 if counter < self.__max_try:
                     self.__to_part.append((channel, counter))
@@ -343,15 +343,14 @@ class IRC:
 
     # rejoin all known channels
     def list_all_channels_to_reconnect(self):
+        channels_to_reconnect = []
+        for channel in self.__to_join:
+            channels_to_reconnect.append((channel[0], 0))
         for channel in self.channels:
-            self.__channels_to_join.append(channel)
+            channels_to_reconnect.append((channel, 0))
+        self.__to_join = channels_to_reconnect
         self.channels = {}
 
-    # leave all connected channels
-    def list_all_channels_to_leave(self):
-        self.__channels_to_join = []
-        for channel in self.channels:
-            self.__channels_to_part.append(channel)
 
     # request channel join
     def join(self, channel: str):
