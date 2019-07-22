@@ -150,9 +150,24 @@ class IRC:
                 self.channel_join(self.__channels_to_join[0])
                 self.__channels_to_join.pop(0)
 
-            if len(self.__channels_to_leave) > 0:
-                self.channel_part(self.__channels_to_leave[0])
-                self.__channels_to_leave.pop(0)
+            if len(self.__channels_to_part) > 0:
+                self.channel_part(self.__channels_to_part[0])
+                self.__channels_to_part.pop(0)
+            """
+            # connect scheduled channels
+            if len(self.__channels_join_scheduled) > 0:
+                i = 0
+                while len(self.__channels_join_scheduled) > 0 and i < self.__max_try:
+                    self.__scheduled_join(self.__channels_join_scheduled[0])
+                    self.__channels_join_scheduled.pop(0)
+                    i += 1
+            # disconnect scheduled channels
+            if len(self.__channels_part_scheduled) > 0:
+                i = 0
+                while len(self.__channels_part_scheduled) > 0 and i < self.__max_try:
+                    self.__scheduled_part(self.__channels_part_scheduled[0])
+                    self.__channels_part_scheduled.pop(0)
+                    i += 1
 
     def __reset_connection(self, warn):
         # emptying the buffer
@@ -303,12 +318,12 @@ class IRC:
     """
 
     # send a channel connection request
-    def channel_join(self, channel: str):
+    def __scheduled_join(self, channel: str):
         if self.__wait_for_status():
             self.__send('JOIN #{}\r\n'.format(channel))
 
-    # leave a channel
-    def channel_part(self, channel: str):
+    # send a channel disconnection request
+    def __scheduled_part(self, channel: str):
         if channel in self.channels and self.__wait_for_status():
             self.__send('PART #{}\r\n'.format(channel))
 
@@ -322,7 +337,15 @@ class IRC:
     def list_all_channels_to_leave(self):
         self.__channels_to_join = []
         for channel in self.channels:
-            self.__channels_to_leave.append(channel)
+            self.__channels_to_part.append(channel)
+
+    # request channel join
+    def join(self, channel: str):
+        self.__channels_join_scheduled.append(channel)
+
+    # request channel join
+    def part(self, channel: str):
+        self.__channels_part_scheduled.append(channel)
 
     """
     sending methods
