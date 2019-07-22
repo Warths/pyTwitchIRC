@@ -136,7 +136,7 @@ class IRC:
                 event = self.parse(tmp)
                 self.__event.update(event)
                 self.__check_callback()
-                if self.__status >= 2:
+                if self.__status == 3:
                     self.__received_event.append(event)
 
             except Exception as e:
