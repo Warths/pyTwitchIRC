@@ -29,14 +29,14 @@ def pop_old_stream(irc, lst):
     chn = irc.channels
     for channels in chn:
         if channels not in lst:
-            irc.channel_part(channels)
+            irc.part(channels)
 
 
 def add_new_stream(irc, lst):
     for channels in lst:
         if channels not in list(irc.channels):
             time.sleep(0.2)
-            irc.channel_join(channels)
+            irc.join(channels)
 
 
 def update_irc(irc, lst):
