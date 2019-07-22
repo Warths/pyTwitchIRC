@@ -371,8 +371,8 @@ class IRC:
         # verify throttling status
         if not ignore_throttle:
             self.__anti_throttle()
-        # verify connection status
-        if self.__wait_for_status():
+        # verify socket instance
+        if self.__wait_for_status(0):
             self.__socket.send(packet.encode('UTF-8'))
             self.__event_sent_date.append(time.time())
         # creating '**..' string with the length required
