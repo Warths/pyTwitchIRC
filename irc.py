@@ -1,10 +1,9 @@
+import datetime
 import re
 import select
 import socket
 import threading
 import time
-import datetime
-
 
 from event import Event, CurrentEvent
 
@@ -326,8 +325,7 @@ class IRC:
             # Wait until next event can be popped out
             else:
                 wait = 30 - (time.time() - self.__event_sent_date[0])
-                self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),
-                                                                                        self.__throttle))
+                self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),self.__throttle))
                 time.sleep(wait)
 
     def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
