@@ -137,7 +137,7 @@ class IRC:
                 print(tmp, file=open("errors.txt", "a"))
                 print(e)
                 print(e.args)
-                self.__warning("appended an error to log.txt")
+                self.__warning("appended an error to error.txt")
 
         if self.__status == 2:
             if len(self.__channels_to_join) > 0:
