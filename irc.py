@@ -351,24 +351,16 @@ class IRC:
 
     # request channel join
     def join(self, channel: str):
-        already_connected = False
-        for i in range(0, len(self.channels)):
-            if self.channels[i][0] == channel:
-                already_connected = True
-                break
-        if not already_connected:
+        channels = list(self.channels)
+        if channel in channels:
             self.__to_join.append((channel, 0, time.time()))
         else:
             self.__warning('Already connected to channel {}, connection aborted'.format(channel))
 
     # request channel join
     def part(self, channel: str):
-        connected = True
-        for i in range(0, len(self.channels)):
-            if self.channels[i][0] == channel:
-                connected = False
-                break
-        if connected:
+        channels = list(self.channels)
+        if channel in channels:
             self.__to_part.append((channel, 0, time.time()))
         else:
             self.__warning('Not connected to channel {}, unable to disconnect'.format(channel))
