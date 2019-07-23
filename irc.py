@@ -135,13 +135,13 @@ class IRC:
                 self.__reset_connection("OSError raised : {} . Trying to reconnect.".format(e.strerror))
                 print(e.args)
 
-    def process_socket(self):
+    def __process_socket(self):
         self.__receive_data()
         while len(self.__event_buffer) > 0:
             tmp = self.__event_buffer.pop(0)
 
             try:
-                event = self.parse(tmp)
+                event = self.__parse(tmp)
                 self.__event.update(event)
                 self.__check_callback()
                 if self.__status == 3:
@@ -254,18 +254,19 @@ class IRC:
     """
     Handlers
     """
-
-    def __on_cap_handler(self, event):
+    
+    # notify cap ack
+    def __on_cap_handler(self, event) -> None:
         try:
+            # store the cap state
             self.__capabilities_acknowledged[event.content] = True
-
+            # notify the cap ack
+            self.__notice('Capability {} got acknowledged'.format(event.content))
+            # if all cap are ack, set the status to 3 (ready)
             if self.__capabilities_acknowledged['twitch.tv/membership'] and \
                     self.__capabilities_acknowledged['twitch.tv/tags'] and \
                     self.__capabilities_acknowledged['twitch.tv/commands']:
                 self.__set_status(3)
-
-            if not self.__log_settings[3]:
-                self.__notice('Capability {} got acknowledged'.format(event.content))
 
         except KeyError:
             self.__warning('Unsupported Cap Ack received : {}'.format(event.content))
@@ -276,7 +277,7 @@ class IRC:
             self.channels[event.channel].append(chatter)
 
     # notify a successful connection or a chatter joining
-    def __on_join_handler(self, event):
+    def __on_join_handler(self, event) -> None:
         # if the author is the client
         if event.author == self.__nickname:
             self.__notice('Successfully connected to {}'.format(event.channel))
@@ -290,7 +291,7 @@ class IRC:
             self.channels[event.channel].append(event.author)
 
     # notify a channel disconnection or a chatter leaving
-    def __on_part_handler(self, event):
+    def __on_part_handler(self, event) -> None:
         # if trigger by the client
         if event.author == self.__nickname:
             try:
@@ -414,6 +415,7 @@ class IRC:
         else:
             return True
 
+    # send a packet and log it[, obfuscate after a certain index][, ignore the throttling cap]
     def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
         # verify throttling status
         if self.__anti_throttle() or ignore_throttle:
@@ -428,7 +430,7 @@ class IRC:
             # print to log
             self.__packet_sent(packet)
 
-    # send a packet and log it[, obfuscate after a certain index]
+    # send a ping acknowledge
     def __send_pong(self) -> None:
         # update last ping time
         self.__last_ping = time.time()
@@ -500,7 +502,7 @@ class IRC:
     """
 
     # wrapper for parsing methods
-    def parse(self, event):
+    def __parse(self, event):
         try:
             tags = self.__parse_tags(event)
             event_type = self.__parse_type(event)
@@ -621,6 +623,6 @@ class IRC:
             print('\33[34m>' + text.strip("\n") + '\33[0m')
             self.__log_to_file(text, "SENT")
 
-    def __log_to_file(self, text, type):
+    def __log_to_file(self, text: str, log_type: str) -> None:
         if self.__log_file:
-            print("[{}][{}]:{}".format(datetime.datetime.now(), type, text), file=open(self.__log_file, "a+"))
+            print("[{}][{}]:{}".format(datetime.datetime.now(), log_type, text), file=open(self.__log_file, "a+"))
