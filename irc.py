@@ -152,11 +152,11 @@ class IRC:
                 channel = item[0]
                 counter = item[1]
                 timestamp = item[2]
-                self.__request_join(channel)
                 counter += 1
                 if time.time() - timestamp < 5:
                     self.__to_join.append((channel, counter, timestamp))
-                if counter < self.__max_try:
+                elif counter < self.__max_try:
+                    self.__request_join(channel)
                     self.__to_join.append((channel, counter, time.time()))
             # connect scheduled channels
             if len(self.__to_part) > 0:
@@ -164,11 +164,11 @@ class IRC:
                 channel = item[0]
                 counter = item[1]
                 timestamp = item[2]
-                self.__request_part(channel)
                 counter += 1
                 if time.time() - timestamp < 5:
                     self.__to_part.append((channel, counter, timestamp))
                 elif counter < self.__max_try:
+                    self.__request_part(channel)
                     self.__to_part.append((channel, counter, time.time()))
 
     def __init_connection(self, warn=None):
@@ -264,6 +264,8 @@ class IRC:
                     self.__to_join.pop(i)
                     break
             print(len(self.__to_join))
+            if len(self.__to_join):
+                print(self.__to_join)
         # if the author is a chatter
         else:
             self.channels[event.channel].append(event.author)
