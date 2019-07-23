@@ -343,9 +343,9 @@ class IRC:
     def list_all_channels_to_reconnect(self):
         channels_to_reconnect = []
         for channel in self.__to_join:
-            channels_to_reconnect.append((channel[0], 0))
+            channels_to_reconnect.append((channel[0], 0, time.time() - 5))
         for channel in self.channels:
-            channels_to_reconnect.append((channel, 0))
+            channels_to_reconnect.append((channel, 0, time.time() - 5))
         self.__to_join = channels_to_reconnect
         self.channels = {}
 
