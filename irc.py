@@ -64,6 +64,11 @@ class IRC:
                 'args': []
             },
             {
+                'type': 'PONG',
+                'method': self.__on_pong_handler,
+                'args': []
+            },
+            {
                 'type': 'CAP',
                 'method': self.__on_cap_handler,
                 'args': [self.__event]
@@ -113,7 +118,10 @@ class IRC:
                         self.__warning('Client didn\'t receive ping for too long')
                         raise socket.timeout
 
-                    self.process_socket()
+                    # [test] keep the connection alive
+                    self.__send_ping()
+                    # __parse all received messages
+                    self.__process_socket()
 
             except socket.gaierror:
                 self.__reset_connection("Gaierror raised. Trying to reconnect.")
@@ -299,6 +307,10 @@ class IRC:
                 self.__notice('User {author} disconnected from {channel}, '
                               'but wasn\'t connected'.format(**event.__dict__))
 
+    # notify a pong reception
+    def __on_pong_handler(self) -> None:
+        self.__notice('Pong received, connection is still alive')
+
     """
     socket
     """
@@ -425,6 +437,14 @@ class IRC:
         # log
         if not self.__log_settings[2]:
             self.__notice('Ping Received. Pong sent.')
+
+    # send a ping request
+    def __send_ping(self) -> None:
+        # check if the last message was more than 3 min old
+        if time.time() - self.__event_sent_date[-1] > 180:
+            self.__send('PING :tmi.twitch.tv\r\n', ignore_throttle=1)
+            if not self.__log_settings[2]:
+                self.__warning('Ping sent.')
 
     def __send_nickname(self):
         self.__send('NICK {}\r\n'.format(self.__nickname), ignore_throttle=1)
