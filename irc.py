@@ -357,12 +357,12 @@ class IRC:
     # send a channel connection request
     def __request_join(self, channel: str):
         if self.__wait_for_status():
-            self.__send('JOIN #{}\r\n'.format(channel))
+            self.__send('JOIN #{}\r\n'.format(channel), ignore_throttle=1)
 
     # send a channel disconnection request
     def __request_part(self, channel: str):
         if channel in self.channels and self.__wait_for_status():
-            self.__send('PART #{}\r\n'.format(channel))
+            self.__send('PART #{}\r\n'.format(channel), ignore_throttle=1)
 
     # rejoin all known channels
     def list_all_channels_to_reconnect(self):
