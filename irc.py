@@ -244,6 +244,7 @@ class IRC:
         elif status == 3:
             self.__notice('STATUS : 3 - Socket ready, buffering messages')
         self.__status = status
+        # todo check status 1 occurrence
 
     # get all received event and clear event buffer
     def get_event(self) -> list:
@@ -394,6 +395,7 @@ class IRC:
     sending methods
     """
 
+    # todo rename this method
     # Lock __send if throttling
     def __anti_throttle(self):
         # while len(self.__event_sent_date) >= self.__throttle:
