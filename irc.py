@@ -410,7 +410,13 @@ class IRC:
         #                 self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),
         #                                                                                         self.__throttle))
         #             time.sleep(wait)
-        if len(self.__event_sent_date) > 0 and 30 - (time.time() - self.__event_sent_date[0]) > 0:
+
+        # while the eldest event in the history is older than 30s
+        while len(self.__event_sent_date) > 0 and (time.time() - self.__event_sent_date[0]) > 30:
+            # pop the eldest event
+            self.__event_sent_date.pop(0)
+        # if the throttle cap is passed
+        if len(self.__event_sent_date) > self.__throttle:
             return False
         else:
             return True
