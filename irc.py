@@ -114,6 +114,8 @@ class IRC:
 
                     self.process_socket()
 
+                    print(len(self.__to_join))
+
             except socket.gaierror:
                 self.__init_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
@@ -152,11 +154,11 @@ class IRC:
                 channel = item[0]
                 counter = item[1]
                 timestamp = item[2]
-                counter += 1
                 if time.time() - timestamp < 5:
                     self.__to_join.append((channel, counter, timestamp))
                 elif counter < self.__max_try:
                     self.__request_join(channel)
+                    counter += 1
                     self.__to_join.append((channel, counter, time.time()))
             # connect scheduled channels
             if len(self.__to_part) > 0:
@@ -164,11 +166,11 @@ class IRC:
                 channel = item[0]
                 counter = item[1]
                 timestamp = item[2]
-                counter += 1
                 if time.time() - timestamp < 5:
                     self.__to_part.append((channel, counter, timestamp))
                 elif counter < self.__max_try:
                     self.__request_part(channel)
+                    counter += 1
                     self.__to_part.append((channel, counter, time.time()))
 
     def __init_connection(self, warn=None):
@@ -263,9 +265,6 @@ class IRC:
                 if self.__to_join[i][0] == event.channel:
                     self.__to_join.pop(i)
                     break
-            print(len(self.__to_join))
-            if len(self.__to_join):
-                print(self.__to_join)
         # if the author is a chatter
         else:
             self.channels[event.channel].append(event.author)
@@ -352,11 +351,27 @@ class IRC:
 
     # request channel join
     def join(self, channel: str):
-        self.__to_join.append((channel, 0, time.time()))
+        already_connected = False
+        for i in range(0, len(self.channels)):
+            if self.channels[i][0] == channel:
+                already_connected = True
+                break
+        if not already_connected:
+            self.__to_join.append((channel, 0, time.time()))
+        else:
+            self.__warning('Already connected to channel {}, connection aborted'.format(channel))
 
     # request channel join
     def part(self, channel: str):
-        self.__to_part.append((channel, 0, time.time()))
+        connected = True
+        for i in range(0, len(self.channels)):
+            if self.channels[i][0] == channel:
+                connected = False
+                break
+        if connected:
+            self.__to_part.append((channel, 0, time.time()))
+        else:
+            self.__warning('Not connected to channel {}, unable to disconnect'.format(channel))
 
     """
     sending methods
@@ -418,7 +433,7 @@ class IRC:
         if self.__wait_for_status():
             # if channel not connected, try to connect
             if channel not in self.channels:
-                self.channel_join(channel)
+                self.join(channel)
                 i = 10
                 while channel not in self.channels:
                     self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
