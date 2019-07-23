@@ -350,7 +350,7 @@ class IRC:
     # request channel join
     def join(self, channel: str):
         channels = list(self.channels)
-        if channel in channels:
+        if channel not in channels:
             self.__to_join.append((channel, 0, time.time()))
         else:
             self.__warning('Already connected to channel {}, connection aborted'.format(channel))
