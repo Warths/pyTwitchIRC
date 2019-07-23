@@ -114,8 +114,6 @@ class IRC:
 
                     self.process_socket()
 
-                    print(len(self.__to_join))
-
             except socket.gaierror:
                 self.__init_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
