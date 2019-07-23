@@ -160,19 +160,25 @@ class IRC:
                 item = self.__to_join.pop(0)
                 channel = item[0]
                 counter = item[1]
+                timestamp = item[2]
                 self.__request_join(channel)
                 counter += 1
+                if time.time() - timestamp < 5:
+                    self.__to_join.append((channel, counter, timestamp))
                 if counter < self.__max_try:
-                    self.__to_join.append((channel, counter))
+                    self.__to_join.append((channel, counter, time.time()))
             # connect scheduled channels
             if len(self.__to_part) > 0:
                 item = self.__to_part.pop(0)
                 channel = item[0]
                 counter = item[1]
+                timestamp = item[2]
                 self.__request_part(channel)
                 counter += 1
-                if counter < self.__max_try:
-                    self.__to_part.append((channel, counter))
+                if time.time() - timestamp < 5:
+                    self.__to_part.append((channel, counter, timestamp))
+                elif counter < self.__max_try:
+                    self.__to_part.append((channel, counter, time.time()))
 
     def __init_connection(self, warn=None):
         # emptying the buffer
@@ -354,11 +360,11 @@ class IRC:
 
     # request channel join
     def join(self, channel: str):
-        self.__to_join.append((channel, 0))
+        self.__to_join.append((channel, 0, time.time()))
 
     # request channel join
     def part(self, channel: str):
-        self.__to_part.append((channel, 0))
+        self.__to_part.append((channel, 0, time.time()))
 
     """
     sending methods
