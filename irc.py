@@ -115,15 +115,16 @@ class IRC:
                     self.process_socket()
 
             except socket.gaierror:
-                self.__init_connection("Gaierror raised. Trying to reconnect.")
+                self.__reset_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
-                self.__init_connection("Timeout Error raised. Trying to reconnect.")
+                self.__reset_connection("Timeout Error raised. Trying to reconnect.")
             except ConnectionResetError:
-                self.__init_connection("ConnectionResetError raised. Trying to reconnect.")
+                self.__reset_connection("ConnectionResetError raised. Trying to reconnect.")
             except BrokenPipeError:
-                self.__init_connection("BrokenPipeError raised. Trying to reconnect.")
-            except OSError:
-                self.__init_connection("OSError raised. Trying to reconnect.")
+                self.__reset_connection("BrokenPipeError raised. Trying to reconnect.")
+            except OSError as e:
+                self.__reset_connection("OSError raised : {} . Trying to reconnect.".format(e.strerror))
+                print(e.args)
 
     def process_socket(self):
         self.__receive_data()
@@ -173,20 +174,24 @@ class IRC:
         # emptying the buffer
         self.__buffer = b''
 
+    def __init_connection(self):
+        self.__connect()
+        self.list_all_channels_to_reconnect()
+
+    def __reset_connection(self, warn=None):
         # print the warning if needed
         if warn:
             self.__warning(warn)
-
+        # emptying the buffer
+        self.__buffer = b''
+        # emptying the channel list
+        self.channels = []
         # reset status variables
         self.__last_ping = time.time()
         self.__socket = None
         for key in self.__capabilities_acknowledged:
             self.__capabilities_acknowledged[key] = False
         self.__set_status(-1)
-
-        # reconnection
-        self.__connect()
-        self.list_all_channels_to_reconnect()
 
     def __connect(self):
         # setup the connection

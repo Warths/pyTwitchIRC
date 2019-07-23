@@ -5,7 +5,7 @@ import requests
 from credentials import nickname, oauth
 from irc import IRC
 
-client = IRC(nickname, oauth, log_settings=(0, 1, 0, 0), throttle=100)
+client = IRC(nickname, oauth, log_settings=(1, 1, 0, 0), throttle=100)
 
 how_many_hundred = 20
 start_at = 0
@@ -47,7 +47,7 @@ def update_irc(irc, lst):
 # with open("tmp.txt", 'r', encoding='utf-8') as file:
 #     sample = file.read()
 # for shit in sample.split('\n'):
-#     print(json.dumps(client.parse(shit).__dict__, indent=2))
+#     print(json.dumps(client.__parse(shit).__dict__, indent=2))
 
 while True:
     stream_list = get_streams(start_at)
@@ -68,12 +68,12 @@ while True:
 #             if e.content[0] == "!":
 #                 e.show()
 #                 if e.content.split()[0] == '!help':
-#                     client.send_message(e.channel, "test")
+#                     client.send(e.channel, "test")
 #                     print('command test received')
 #             elif e.content[0] == '' and e.content[-1] == '':
 #                 print(e.tags['mod'])
 #                 # if e.tags['mod'] == '0':
-#                 #     client.send_message(e.channel, '/delete {}'.format(e.tags['id']))
+#                 #     client.send(e.channel, '/delete {}'.format(e.tags['id']))
 #                 # else:
 #                 e.emphasis()
 #             else:
