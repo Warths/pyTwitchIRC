@@ -48,6 +48,7 @@ class IRC:
         self.__channels_to_join = []
         self.__to_join = []
         self.__to_part = []
+        self.__to_send = []
 
         self.__capabilities_acknowledged = {
             "twitch.tv/tags": False,
@@ -147,32 +148,42 @@ class IRC:
         if self.__status == 3:
             # connect scheduled channels
             if len(self.__to_join) > 0:
+                # retrieve the first channel to join
                 item = self.__to_join.pop(0)
                 channel = item[0]
                 counter = item[1]
                 timestamp = item[2]
-                if time.time() - timestamp < 5:
+                # if the last try is below 5s old or the socket is throttling
+                if time.time() - timestamp < 5 or not self.__anti_throttle():
                     self.__to_join.append((channel, counter, timestamp))
+                # else if the counter is below max_try
                 elif counter < self.__max_try:
+                    # send the join request
                     self.__request_join(channel)
+                    # add back to the list
                     counter += 1
                     self.__to_join.append((channel, counter, time.time()))
             # connect scheduled channels
             if len(self.__to_part) > 0:
+                # retrieve the first channel to part
                 item = self.__to_part.pop(0)
                 channel = item[0]
                 counter = item[1]
                 timestamp = item[2]
-                if time.time() - timestamp < 5:
+                # if the last try is below 5s old or the socket is throttling
+                if time.time() - timestamp < 5 or not self.__anti_throttle():
                     self.__to_part.append((channel, counter, timestamp))
+                # else if the counter is below max_try
                 elif counter < self.__max_try:
+                    # send the part request
                     self.__request_part(channel)
+                    # add back to the list
                     counter += 1
                     self.__to_part.append((channel, counter, time.time()))
-
-    def __init_connection(self, warn=None):
-        # emptying the buffer
-        self.__buffer = b''
+                else:
+                    self.__warning('Failed to join channel {}'.format(channel))
+            # send scheduled messages
+            self.__send_message()
 
     def __init_connection(self):
         self.__connect()
@@ -422,21 +433,23 @@ class IRC:
         self.__send('PASS {}\r\n'.format(self.__oauth), 11, ignore_throttle=1)
 
     # send a message to a channel and prevent sending to disconnected channels
-    def send_message(self, channel: str, message: str):
-        if self.__wait_for_status():
+    def __send_message(self) -> None:
+        # if there is message to send and socket ready and socket not throttling
+        if len(self.__to_send) > 0 and self.__wait_for_status() and not self.__anti_throttle():
+            # retrieve the first message to send
+            item = self.__to_send.pop(0)
+            channel = item[0]
+            message = item[1]
             # if channel not connected, try to connect
             if channel not in self.channels:
-                self.join(channel)
-                i = 10
-                while channel not in self.channels:
-                    self.__warning('Channel {} not connected, wait {}s until abort'.format(channel, i))
-                    i -= 1
-                    time.sleep(1)
-                    if i < 0:
-                        break
+                self.__warning('Try to send to not connected channel, abort')
+            else:
+                packet = "PRIVMSG #{} : {}\r\n".format(channel, message)
+                self.__send(packet)
 
-            packet = "PRIVMSG #{} : {}\r\n".format(channel, message)
-            self.__send(packet)
+    # request the sending of a message
+    def send(self, channel: str, message: str):
+        self.__to_send.append((channel, message))
 
     # send a IRC capability request
     def __request_capabilities(self, arg: str):
