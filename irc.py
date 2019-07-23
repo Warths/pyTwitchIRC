@@ -146,15 +146,6 @@ class IRC:
                 self.__warning("appended an error to error.txt")
 
         if self.__status == 3:
-            """
-            if len(self.__channels_to_join) > 0:
-                self.channel_join(self.__channels_to_join[0])
-                self.__channels_to_join.pop(0)
-
-            if len(self.__channels_to_part) > 0:
-                self.channel_part(self.__channels_to_part[0])
-                self.__channels_to_part.pop(0)
-            """
             # connect scheduled channels
             if len(self.__to_join) > 0:
                 item = self.__to_join.pop(0)
@@ -272,7 +263,7 @@ class IRC:
                 if self.__to_join[i][0] == event.channel:
                     self.__to_join.pop(i)
                     break
-            print(self.__to_join)
+            print(len(self.__to_join))
         # if the author is a chatter
         else:
             self.channels[event.channel].append(event.author)
@@ -357,7 +348,6 @@ class IRC:
         self.__to_join = channels_to_reconnect
         self.channels = {}
 
-
     # request channel join
     def join(self, channel: str):
         self.__to_join.append((channel, 0, time.time()))
@@ -372,35 +362,38 @@ class IRC:
 
     # Lock __send if throttling
     def __anti_throttle(self):
-        while len(self.__event_sent_date) >= self.__throttle:
-            t = time.time()
-            # check if event is older than 30 seconds
-            if t - self.__event_sent_date[0] > 30:  # seconds
-                self.__event_sent_date.pop(0)
-
-            # Wait until next event can be popped out
-            else:
-                wait = 30 - (t - self.__event_sent_date[0])
-                if 0 < wait < 30:
-                    if wait > 0.5:
-                        self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),
-                                                                                                self.__throttle))
-                    time.sleep(wait)
+        # while len(self.__event_sent_date) >= self.__throttle:
+        #     t = time.time()
+        #     # check if event is older than 30 seconds
+        #     if t - self.__event_sent_date[0] > 30:  # seconds
+        #         self.__event_sent_date.pop(0)
+        #
+        #     # Wait until next event can be popped out
+        #     else:
+        #         wait = 30 - (t - self.__event_sent_date[0])
+        #         if 0 < wait < 30:
+        #             if wait > 0.5:
+        #                 self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),
+        #                                                                                         self.__throttle))
+        #             time.sleep(wait)
+        if len(self.__event_sent_date) > 0 and 30 - (time.time() - self.__event_sent_date[0]) > 0:
+            return False
+        else:
+            return True
 
     def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
         # verify throttling status
-        if not ignore_throttle:
-            self.__anti_throttle()
-        # verify socket instance
-        if self.__wait_for_status(0):
-            self.__socket.send(packet.encode('UTF-8'))
-            self.__event_sent_date.append(time.time())
-        # creating '**..' string with the length required
-        if obfuscate_after:
-            packet_hidden = '*' * (len(packet) - obfuscate_after)
-            packet = packet[0:obfuscate_after] + packet_hidden
-        # print to log
-        self.__packet_sent(packet)
+        if self.__anti_throttle() or ignore_throttle:
+            # verify socket instance
+            if self.__wait_for_status(0):
+                self.__socket.send(packet.encode('UTF-8'))
+                self.__event_sent_date.append(time.time())
+            # creating '**..' string with the length required
+            if obfuscate_after:
+                packet_hidden = '*' * (len(packet) - obfuscate_after)
+                packet = packet[0:obfuscate_after] + packet_hidden
+            # print to log
+            self.__packet_sent(packet)
 
     # send a packet and log it[, obfuscate after a certain index]
     def __send_pong(self) -> None:
