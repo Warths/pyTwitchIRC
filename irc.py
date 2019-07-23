@@ -118,8 +118,6 @@ class IRC:
                 self.__init_connection("Gaierror raised. Trying to reconnect.")
             except socket.timeout:
                 self.__init_connection("Timeout Error raised. Trying to reconnect.")
-            except socket.error:
-                self.__init_connection("Error raised. Trying to reconnect.")
             except ConnectionResetError:
                 self.__init_connection("ConnectionResetError raised. Trying to reconnect.")
             except BrokenPipeError:
