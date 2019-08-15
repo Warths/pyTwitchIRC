@@ -255,7 +255,7 @@ class IRC:
     """
     Handlers
     """
-    
+
     # notify cap ack
     def __on_cap_handler(self, event) -> None:
         try:
@@ -458,7 +458,22 @@ class IRC:
             message = item[1]
             # if channel not connected, try to connect
             if channel not in self.channels:
-                self.__warning('Try to send to not connected channel, abort')
+                self.join(channel)
+                self.__warning('Try to send to not connected channel, connecting to the channel..')
+                # Listing all message for the same channel to preserve sending order
+                channel_messages = [item]
+                channel_indexes = []
+                for i in range(0, len(self.__to_send)):
+                    if channel == self.__to_send[i][0]:
+                        channel_messages.append(self.__to_send[i])
+                        channel_indexes.append(i)
+                # removing indexes
+                channel_indexes.reverse()
+                for indexes in channel_indexes:
+                    self.__to_send.pop(indexes)
+                # Adding all messages at the end of the list
+                self.__to_send = self.__to_send + channel_messages
+
             else:
                 packet = "PRIVMSG #{} :{}\r\n".format(channel, message)
                 self.__send(packet)
