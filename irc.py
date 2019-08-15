@@ -615,22 +615,22 @@ class IRC:
 
     def __notice(self, text: str) -> None:
         if self.__log_settings[0]:
-            print('\33[32m' + text + '\33[0m')
+            print('[{}]\33[32m'.format(datetime.datetime.now()) + text + '\33[0m')
             self.__log_to_file(text, "NOTE")
 
     def __warning(self, text: str) -> None:
         if self.__log_settings[1]:
-            print('\33[31m' + text + '\33[0m')
+            print('[{}]\33[31m'.format(datetime.datetime.now()) + text + '\33[0m')
             self.__log_to_file(text, "WARN")
 
     def __packet_received(self, text: str) -> None:
         if self.__log_settings[2]:
-            print('\33[36m<' + text + '\33[0m')
+            print('[{}]\33[36m<'.format(datetime.datetime.now()) + text + '\33[0m')
             self.__log_to_file(text, "RCEV")
 
     def __packet_sent(self, text: str) -> None:
         if self.__log_settings[3]:
-            print('\33[34m>' + text.strip("\n") + '\33[0m')
+            print('[{}]\33[34m>'.format(datetime.datetime.now()) + text.strip("\n") + '\33[0m')
             self.__log_to_file(text, "SENT")
 
     def __log_to_file(self, text: str, log_type: str) -> None:
