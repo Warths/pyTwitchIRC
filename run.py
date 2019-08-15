@@ -2,7 +2,7 @@ import time
 
 import requests
 
-from credentials import nickname, oauth
+from credentials import nickname, oauth, clientId
 from irc import IRC
 
 client = IRC(nickname, oauth, log_settings=(1, 1, 0, 0), throttle=100)
@@ -14,7 +14,7 @@ start_at = 0
 def get_streams(hundred: int):
     username_list = []
     pagination = ''
-    headers = {"Client-ID": 'qab2o1rz2l780rdbn7myuk5iyg4wra'}
+    headers = {"Client-ID": clientId}
     while hundred > 0:
         r = requests.get("https://api.twitch.tv/helix/streams?first=100{}".format(pagination), headers=headers)
         for stuff in r.json()['data']:
