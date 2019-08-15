@@ -76,7 +76,7 @@ class IRC:
             {
                 'type': '376',
                 'method': self.__set_status,
-                'args': [1]
+                'args': [2]
             },
             {
                 'type': 'JOIN',
