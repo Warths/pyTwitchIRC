@@ -412,7 +412,7 @@ class IRC:
     # send a packet and log it[, obfuscate after a certain index][, ignore the throttling cap]
     def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
         # verify throttling status
-        if self.__anti_throttle() or ignore_throttle:
+        if self.__anti_throttle() or not ignore_throttle:
             # verify socket instance
             if self.__wait_for_status(0):
                 self.__socket.send(packet.encode('UTF-8'))
