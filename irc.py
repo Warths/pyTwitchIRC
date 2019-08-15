@@ -437,7 +437,7 @@ class IRC:
     # send a ping request
     def __send_ping(self) -> None:
         # check if the last message was more than 3 min old
-        if time.time() - self.__event_sent_date[-1] > 180:
+        if len(self.__event_sent_date) and time.time() - self.__event_sent_date[-1] > 180:
             self.__send('PING :tmi.twitch.tv\r\n', ignore_throttle=1)
             if not self.__log_settings[2]:
                 self.__warning('Ping sent.')
