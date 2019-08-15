@@ -432,7 +432,7 @@ class IRC:
         self.__send('PONG :tmi.twitch.tv\r\n', ignore_throttle=1)
         # log
         if not self.__log_settings[2]:
-            self.__notice('Ping received. Pong sent.')
+            self.__notice('Ping Received. Pong sent.')
 
     # send a ping request
     def __send_ping(self) -> None:
@@ -460,7 +460,7 @@ class IRC:
             if channel not in self.channels:
                 self.__warning('Try to send to not connected channel, abort')
             else:
-                packet = "PRIVMSG #{} : {}\r\n".format(channel, message)
+                packet = "PRIVMSG #{} :{}\r\n".format(channel, message)
                 self.__send(packet)
 
     # request the sending of a message
