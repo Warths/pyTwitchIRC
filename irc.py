@@ -451,7 +451,7 @@ class IRC:
     # send a message to a channel and prevent sending to disconnected channels
     def __send_message(self) -> None:
         # if there is message to send and socket ready and socket not throttling
-        if len(self.__to_send) > 0 and self.__wait_for_status() and not self.__anti_throttle():
+        if len(self.__to_send) > 0 and self.__wait_for_status() and self.__anti_throttle():
             # retrieve the first message to send
             item = self.__to_send.pop(0)
             channel = item[0]
