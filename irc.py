@@ -171,6 +171,8 @@ class IRC:
                     # add back to the list
                     counter += 1
                     self.__to_join.append((channel, counter, time.time()))
+            # send scheduled messages
+            self.__send_message()
             # connect scheduled channels
             if len(self.__to_part) > 0:
                 # retrieve the first channel to part
@@ -190,8 +192,7 @@ class IRC:
                     self.__to_part.append((channel, counter, time.time()))
                 else:
                     self.__warning('Failed to join channel {}'.format(channel))
-            # send scheduled messages
-            self.__send_message()
+
 
     def __init_connection(self):
         self.__connect()
