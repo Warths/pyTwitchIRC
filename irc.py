@@ -399,21 +399,6 @@ class IRC:
     # todo rename this method
     # Lock __send if throttling
     def __anti_throttle(self):
-        # while len(self.__event_sent_date) >= self.__throttle:
-        #     t = time.time()
-        #     # check if event is older than 30 seconds
-        #     if t - self.__event_sent_date[0] > 30:  # seconds
-        #         self.__event_sent_date.pop(0)
-        #
-        #     # Wait until next event can be popped out
-        #     else:
-        #         wait = 30 - (t - self.__event_sent_date[0])
-        #         if 0 < wait < 30:
-        #             if wait > 0.5:
-        #                 self.__warning('Waiting {}s to avoid throttling [{} send / 30s]'.format(round(wait, 2),
-        #                                                                                         self.__throttle))
-        #             time.sleep(wait)
-
         # while the eldest event in the history is older than 30s
         while len(self.__event_sent_date) > 0 and (time.time() - self.__event_sent_date[0]) > 30:
             # pop the eldest event
