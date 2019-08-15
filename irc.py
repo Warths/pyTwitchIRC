@@ -118,8 +118,8 @@ class IRC:
                         self.__warning('Client didn\'t receive ping for too long')
                         raise socket.timeout
 
-                    # [test] keep the connection alive
-                    self.__send_ping()
+                    # # [test] keep the connection alive
+                    # self.__send_ping()
                     # __parse all received messages
                     self.__process_socket()
 
@@ -432,7 +432,7 @@ class IRC:
         self.__send('PONG :tmi.twitch.tv\r\n', ignore_throttle=1)
         # log
         if not self.__log_settings[2]:
-            self.__notice('Ping Received. Pong sent.')
+            self.__notice('Ping received. Pong sent.')
 
     # send a ping request
     def __send_ping(self) -> None:
