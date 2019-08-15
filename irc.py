@@ -207,6 +207,7 @@ class IRC:
         self.channels = []
         # reset status variables
         self.__last_ping = time.time()
+
         self.__socket = None
         for key in self.__capabilities_acknowledged:
             self.__capabilities_acknowledged[key] = False
@@ -218,7 +219,6 @@ class IRC:
         self.__connect_socket()
         self.__send_pass()
         self.__send_nickname()
-        self.__set_status(2)
 
         # request all the IRC capabilities
         self.__request_capabilities("twitch.tv/commands")
