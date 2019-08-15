@@ -378,8 +378,9 @@ class IRC:
     # request channel join
     def join(self, channel: str):
         channels = list(self.channels)
+
         if channel not in channels:
-            self.__to_join.append((channel, 0, time.time()))
+            self.__to_join.append((channel, 0, time.time()-5))
         else:
             self.__warning('Already connected to channel {}, connection aborted'.format(channel))
 
@@ -387,7 +388,7 @@ class IRC:
     def part(self, channel: str):
         channels = list(self.channels)
         if channel in channels:
-            self.__to_part.append((channel, 0, time.time()))
+            self.__to_part.append((channel, 0, time.time()-5))
         else:
             self.__warning('Not connected to channel {}, unable to disconnect'.format(channel))
 
