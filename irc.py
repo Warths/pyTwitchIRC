@@ -388,7 +388,8 @@ class IRC:
     # request channel join
     def part(self, channel: str):
         channels = list(self.channels)
-        if channel in channels:
+        scheduled_channels_connection = [item[0] for item in self.__to_join]
+        if channel in channels or channel in scheduled_channels_connection:
             self.__to_part.append((channel, 0, time.time()-5))
         else:
             self.__warning('Not connected to channel {}, unable to disconnect'.format(channel))
