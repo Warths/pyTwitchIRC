@@ -26,10 +26,10 @@ def get_streams(hundred: int):
 
 
 def pop_old_stream(irc, lst):
-    chn = irc.channels
-    for channels in chn:
-        if channels not in lst:
-            irc.part(channels)
+    chn = list(irc.channels)
+    for channel in chn:
+        if channel not in lst:
+            irc.part(channel)
 
 
 def add_new_stream(irc, lst):
