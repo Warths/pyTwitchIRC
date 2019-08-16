@@ -1,0 +1,1 @@
+from pytwitchirc.irc import IRC

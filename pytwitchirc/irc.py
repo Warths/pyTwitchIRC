@@ -5,7 +5,7 @@ import socket
 import threading
 import time
 
-from event import Event, CurrentEvent
+from pytwitchirc.event import Event, CurrentEvent
 
 
 class IRC:
