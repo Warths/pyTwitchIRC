@@ -19,6 +19,8 @@ class IRC:
         :param host: twitch server to connect with
         :param port: twitch server port to connect with
         :param log_settings: [notice, warning, received, send] set the logging fashion
+        :param throttle: maximum number of message per 30s
+        :param log_file: path to the desired log file
         :param how_many: maximum new connection per run loop
         :param max_try: maximum try before abort joining a channel
         """
