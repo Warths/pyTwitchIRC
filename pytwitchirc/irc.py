@@ -195,7 +195,6 @@ class IRC:
                 else:
                     self.__warning('Failed to join channel {}'.format(channel))
 
-
     def __init_connection(self):
         self.__connect()
         self.list_all_channels_to_reconnect()
