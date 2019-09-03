@@ -207,7 +207,11 @@ class IRC:
         # emptying the buffer
         self.__buffer = b''
         # emptying the channel list
-        self.channels = []
+        channels = list(self.channels)
+        self.channels.clear()
+        for channel in channels:
+            self.join(channel)
+        print(len(self.channels))
         # reset status variables
         self.__last_ping = time.time()
 
