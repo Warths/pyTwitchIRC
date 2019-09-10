@@ -251,7 +251,6 @@ class IRC:
         elif status == 3:
             self.__notice('STATUS : 3 - Socket ready, buffering messages')
         self.__status = status
-        # todo check status 1 occurrence
 
     # get all received event and clear event buffer
     def get_event(self) -> list:
