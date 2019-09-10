@@ -520,17 +520,17 @@ class IRC:
     # wrapper for parsing methods
     def __parse(self, event):
         try:
-            tags = self.__parse_tags(event)
             event_type = self.__parse_type(event)
             channel = self.__parse_channel(event, event_type)
             author = self.__parse_author(event)
             content = self.__parse_content(event, channel)
+            tags = self.__parse_tags(event, content)
             return Event(event, type=event_type, tags=tags, channel=channel, author=author, content=content)
         except Exception as e:
             print(e.args)
             print(event)
 
-    def __parse_tags(self, event):
+    def __parse_tags(self, event, content):
         # Checking if there is tags
         if event[0] == '@':
             # Isolating tags (between '@' and ' :')
@@ -539,8 +539,21 @@ class IRC:
             # Parsing sub dict (separator : '/' and ',')
             for key in tags:
                 # undocumented tag, not processed #twitch
+                # supposed to be the parts of the message caught by auto-mod and parsed as such
                 if key == 'flags':
-                    pass
+                    flags = tags['flags']
+                    flagged = []
+                    if len(flags):
+                        flags_list = flags.split(',')
+                        for flag in flags_list:
+                            index1 = int(flag.split('-')[0])
+                            index2 = int(flag.split('-')[1].split(':')[0]) + 1
+                            attributes = flag.split(':')[1]
+                            flagged.append({'from': index1,
+                                            'to': index2,
+                                            'attributes': attributes,
+                                            'text': content[index1:index2]})
+                    tags[key] = flagged
                 elif key == 'msg-param-sub-plan-name':
                     tags[key] = tags[key].replace('\\s', ' ')
                 # if the tag contain ':' it's a dict containing lists
