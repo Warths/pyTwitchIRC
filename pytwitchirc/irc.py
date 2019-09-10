@@ -154,6 +154,7 @@ class IRC:
                 print(e)
                 print(e.args)
                 self.__warning("appended an error to error.txt")
+                self.__warning(tmp)
 
         if self.__status == 3:
             # connect scheduled channels
