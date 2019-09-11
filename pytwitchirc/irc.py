@@ -165,7 +165,7 @@ class IRC:
                 counter = item[1]
                 timestamp = item[2]
                 # if the last try is below 5s old or the socket is throttling
-                if time.time() - timestamp < 5 or not self.__anti_throttle():
+                if time.time() - timestamp < 5 or not self.not_throttling():
                     self.__to_join.append((channel, counter, timestamp))
                 # else if the counter is below max_try
                 elif counter < self.__max_try:
@@ -184,7 +184,7 @@ class IRC:
                 counter = item[1]
                 timestamp = item[2]
                 # if the last try is below 5s old or the socket is throttling
-                if time.time() - timestamp < 5 or not self.__anti_throttle():
+                if time.time() - timestamp < 5 or not self.not_throttling():
                     self.__to_part.append((channel, counter, timestamp))
                 # else if the counter is below max_try
                 elif counter < self.__max_try:
@@ -405,7 +405,7 @@ class IRC:
 
     # todo rename this method
     # Lock __send if throttling
-    def __anti_throttle(self):
+    def not_throttling(self):
         # while the eldest event in the history is older than 30s
         while len(self.__event_sent_date) > 0 and (time.time() - self.__event_sent_date[0]) > 30:
             # pop the eldest event
@@ -419,7 +419,7 @@ class IRC:
     # send a packet and log it[, obfuscate after a certain index][, ignore the throttling cap]
     def __send(self, packet, obfuscate_after=None, ignore_throttle=0):
         # verify throttling status
-        if self.__anti_throttle() or not ignore_throttle:
+        if self.not_throttling() or ignore_throttle:
             # verify socket instance
             if self.__wait_for_status(0):
                 self.__socket.send(packet.encode('UTF-8'))
@@ -458,7 +458,7 @@ class IRC:
     # send a message to a channel and prevent sending to disconnected channels
     def __send_message(self) -> None:
         # if there is message to send and socket ready and socket not throttling
-        if len(self.__to_send) > 0 and self.__wait_for_status() and self.__anti_throttle():
+        if len(self.__to_send) > 0 and self.__wait_for_status() and self.not_throttling():
             # retrieve the first message to send
             item = self.__to_send.pop(0)
             channel = item[0]
@@ -517,6 +517,7 @@ class IRC:
     parsing methods
     """
 
+
     # wrapper for parsing methods
     def __parse(self, event):
         try:
@@ -529,6 +530,9 @@ class IRC:
         except Exception as e:
             print(e.args)
             print(event)
+
+    def parse(self, event):
+        return self.__parse(event)
 
     def __parse_tags(self, event, content):
         # Checking if there is tags
