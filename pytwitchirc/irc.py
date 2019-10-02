@@ -568,9 +568,6 @@ class IRC:
                 # if the tag contain '/' it's a dict containing ints
                 elif '/' in tags[key] and '//' not in tags[key]:
                     tags[key] = self.__parse_tags_dict(tags[key], ',', '/')
-            # remove the user-type key as it's the message author (use the event.author instead)
-            if 'user-type' in tags:
-                tags.pop('user-type')
             return tags
 
     @staticmethod
