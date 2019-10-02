@@ -656,3 +656,4 @@ class IRC:
     def __log_to_file(self, text: str, log_type: str) -> None:
         if self.__log_file:
             print("[{}][{}]:{}".format(datetime.datetime.now(), log_type, text), file=open(self.__log_file, "a+"))
+
